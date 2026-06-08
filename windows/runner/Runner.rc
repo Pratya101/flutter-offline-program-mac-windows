@@ -92,9 +92,9 @@ BEGIN
             VALUE "CompanyName", "com.example" "\0"
             VALUE "FileDescription", "SoftSale Offline" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "offline_desktop_program" "\0"
+            VALUE "InternalName", "SoftSaleOffline" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2026 com.example. All rights reserved." "\0"
-            VALUE "OriginalFilename", "offline_desktop_program.exe" "\0"
+            VALUE "OriginalFilename", "SoftSaleOffline.exe" "\0"
             VALUE "ProductName", "SoftSale Offline" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
