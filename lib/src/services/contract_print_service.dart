@@ -17,10 +17,21 @@ class SaleContractPrintService {
     }
 
     final customer = await _database.findCustomerById(sale.customerId);
+    final shop = await _database.getOrCreatePrimaryShop();
     final items = await _database.getSaleItems(sale.id);
     final installments = await _database.getSaleInstallments(sale.id);
     final paymentLogs = await _database.getSalePaymentLogs(sale.id);
     final paymentRows = _buildPaymentRows(sale, paymentLogs);
+    final shopDescription = _shopDocumentDescription(shop);
+    final contractIntro = _contractIntroText(
+      sale: sale,
+      customer: customer,
+      shop: shop,
+    );
+    final contractTerms = _contractTermsHtml(
+      sale: sale,
+      installments: installments,
+    );
 
     return '''
 <!doctype html>
@@ -29,44 +40,64 @@ class SaleContractPrintService {
   <meta charset="utf-8">
   <title>สัญญาซื้อขาย ${_escapeHtml(sale.saleNumber)}</title>
   <style>
-    @page { size: A4; margin: 12mm; }
+    @page { size: A4; margin: 10mm; }
     * { box-sizing: border-box; }
     body {
       margin: 0;
       color: #1f2937;
-      font-family: "TH Sarabun New", "Sarabun", Tahoma, sans-serif;
-      font-size: 15px;
-      line-height: 1.35;
+      font-family: "Sarabun", "Noto Sans Thai", Tahoma, Arial, sans-serif;
+      font-size: 12px;
+      line-height: 1.25;
       background: #fff;
     }
     .document {
       width: 100%;
-      min-height: 277mm;
+      min-height: 0;
       border: 1px solid #64748b;
-      padding: 10mm;
+      border-collapse: separate;
+      border-spacing: 0;
+      margin: 0;
+    }
+    .contract-print-header {
+      display: table-header-group;
+    }
+    .contract-print-body {
+      display: table-row-group;
+    }
+    .contract-print-header-cell,
+    .contract-print-body-cell {
+      border: 0;
+      vertical-align: top;
+    }
+    .contract-print-header-cell {
+      padding: 7mm 7mm 0;
+    }
+    .contract-print-body-cell {
+      padding: 0 7mm 7mm;
     }
     .store-box {
       border: 1px solid #64748b;
       border-radius: 6px;
       text-align: center;
-      padding: 8px 10px 10px;
-      margin-bottom: 14px;
+      padding: 7px 10px 8px;
+      margin-bottom: 10px;
     }
     .title {
       margin: 0 0 2px;
-      font-size: 22px;
+      font-size: 18px;
       font-weight: 800;
       text-decoration: underline;
     }
     .store-name {
       margin: 0;
       color: #1d4ed8;
-      font-size: 30px;
+      font-size: 25px;
       font-weight: 900;
     }
     .store-detail {
       margin: 2px 0 0;
       font-weight: 700;
+      overflow-wrap: anywhere;
     }
     .line-row {
       display: grid;
@@ -77,23 +108,34 @@ class SaleContractPrintService {
     }
     .label { font-weight: 700; color: #334155; }
     .line {
-      min-height: 22px;
+      min-height: 18px;
       border-bottom: 1px dotted #475569;
       padding: 0 4px 1px;
       font-weight: 700;
     }
-    .body-text {
-      margin: 10px 0;
+    .body-text,
+    .contract-intro {
+      margin: 7px 0;
       text-align: justify;
+      overflow-wrap: anywhere;
+    }
+    .contract-terms {
+      margin: 6px 0 8px;
+      padding-left: 18px;
+    }
+    .contract-terms li {
+      margin: 3px 0;
+      text-align: justify;
+      overflow-wrap: anywhere;
     }
     table {
       width: 100%;
       border-collapse: collapse;
-      margin: 8px 0 12px;
+      margin: 6px 0 9px;
     }
     th, td {
       border: 1px solid #64748b;
-      padding: 5px 7px;
+      padding: 3px 5px;
       vertical-align: top;
     }
     th {
@@ -103,27 +145,40 @@ class SaleContractPrintService {
     }
     .right { text-align: right; }
     .center { text-align: center; }
+    .payment-signature-grid {
+      display: grid;
+      grid-template-columns: minmax(320px, 1fr) minmax(230px, 0.72fr);
+      gap: 16px;
+      align-items: start;
+      margin-top: 10px;
+    }
     .payment-table {
-      width: 48%;
-      min-width: 320px;
-      margin-top: 16px;
+      margin: 0;
     }
     .payment-stamp {
       font-weight: 800;
       color: #047857;
     }
-    .signature-grid {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-      gap: 18px;
-      margin-top: 18px;
+    .signature-section {
+      margin-top: 0;
     }
-    .signature-line {
+    .signature-row {
       display: grid;
-      grid-template-columns: 44px minmax(0, 1fr);
-      gap: 8px;
+      grid-template-columns: 44px minmax(0, 1fr) 96px;
+      column-gap: 10px;
       align-items: end;
-      margin-top: 14px;
+      min-height: 32px;
+    }
+    .signature-row + .signature-row {
+      margin-top: 12px;
+    }
+    .signature-label {
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .signature-fill {
+      height: 18px;
+      border-bottom: 2px solid #475569;
     }
     .muted { color: #64748b; }
     @media print {
@@ -133,12 +188,21 @@ class SaleContractPrintService {
   </style>
 </head>
 <body>
-  <div class="document">
-    <section class="store-box">
-      <h1 class="title">หนังสือสัญญาซื้อขาย</h1>
-      <p class="store-name">ร้าน ดี ดี เฟอร์นิเจอร์</p>
-      <p class="store-detail">จำหน่ายเฟอร์นิเจอร์ทุกชนิด โทร. 098-1235023, 042-287246, 080-4063509</p>
-    </section>
+  <table class="document">
+    <thead class="contract-print-header">
+      <tr>
+        <td class="contract-print-header-cell">
+          <section class="store-box">
+            <h1 class="title">หนังสือสัญญาซื้อขาย</h1>
+            <p class="store-name">${_escapeHtml(shop.name)}</p>
+            <p class="store-detail">${_escapeHtml(shopDescription)}</p>
+          </section>
+        </td>
+      </tr>
+    </thead>
+    <tbody class="contract-print-body">
+      <tr>
+        <td class="contract-print-body-cell">
 
     <div class="line-row">
       <span class="label">เลขที่</span>
@@ -156,12 +220,15 @@ class SaleContractPrintService {
       <span class="label">ที่อยู่</span>
       <span class="line">${_escapeHtml(_customerAddress(customer))}</span>
       <span class="label">ผู้ขาย</span>
-      <span class="line">ร้าน ดี ดี เฟอร์นิเจอร์</span>
+      <span class="line">${_escapeHtml(shop.name)}</span>
     </div>
 
-    <p class="body-text">
-      ผู้ซื้อและผู้ขายได้ตกลงทำสัญญาซื้อขายสินค้าตามรายการต่อไปนี้ โดยผู้ซื้อยินยอมชำระเงินตามจำนวนงวดและกำหนดวันที่ระบุไว้ในสัญญานี้
+    <p class="contract-intro">
+      ${_escapeHtml(contractIntro)}
     </p>
+    <ol class="contract-terms">
+      $contractTerms
+    </ol>
 
     <table>
       <thead>
@@ -199,36 +266,47 @@ class SaleContractPrintService {
       </tbody>
     </table>
 
-    <table class="payment-table">
-      <thead>
-        <tr>
-          <th colspan="4">ตารางการชำระเงิน</th>
-        </tr>
-        <tr>
-          <th style="width: 28%">วันที่จ่าย</th>
-          <th style="width: 20%">งวด</th>
-          <th style="width: 28%">จำนวนเงิน</th>
-          <th style="width: 24%">ผู้รับเงิน</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${paymentRows.map(_paymentRowHtml).join('\n')}
-      </tbody>
-    </table>
+    <div class="payment-signature-grid">
+      <table class="payment-table">
+        <thead>
+          <tr>
+            <th colspan="4">ตารางการชำระเงิน</th>
+          </tr>
+          <tr>
+            <th style="width: 28%">วันที่จ่าย</th>
+            <th style="width: 20%">งวด</th>
+            <th style="width: 28%">จำนวนเงิน</th>
+            <th style="width: 24%">ผู้รับเงิน</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${paymentRows.map(_paymentRowHtml).join('\n')}
+        </tbody>
+      </table>
 
-    <div class="signature-grid">
-      <div>
-        <div class="signature-line"><span>ลงชื่อ</span><span class="line"></span></div>
-        <div class="signature-line"><span>ลงชื่อ</span><span class="line"></span></div>
-        <div class="signature-line"><span>ลงชื่อ</span><span class="line"></span></div>
-      </div>
-      <div>
-        <div class="signature-line"><span>ผู้ขาย</span><span class="line"></span></div>
-        <div class="signature-line"><span>ผู้ซื้อ</span><span class="line"></span></div>
-        <div class="signature-line"><span>พยาน</span><span class="line"></span></div>
+      <div class="signature-section">
+        <div class="signature-row">
+          <span class="signature-label">ลงชื่อ</span><span class="signature-fill"></span>
+          <span class="signature-label">ผู้เช่า</span>
+        </div>
+        <div class="signature-row">
+          <span class="signature-label">ลงชื่อ</span><span class="signature-fill"></span>
+          <span class="signature-label">ผู้ใช้เช่า</span>
+        </div>
+        <div class="signature-row">
+          <span class="signature-label">ลงชื่อ</span><span class="signature-fill"></span>
+          <span class="signature-label">ผู้ค้ำประกัน</span>
+        </div>
+        <div class="signature-row">
+          <span class="signature-label">ลงชื่อ</span><span class="signature-fill"></span>
+          <span class="signature-label">พยาน</span>
+        </div>
       </div>
     </div>
-  </div>
+        </td>
+      </tr>
+    </tbody>
+  </table>
   <script>
     window.addEventListener('load', () => setTimeout(() => window.print(), 350));
   </script>
@@ -270,7 +348,7 @@ class SaleContractPrintService {
           paidAt: sale.createdAt,
           installmentLabel: 'เงินดาวน์',
           amount: sale.downPaymentAmount,
-          receiverName: 'ระบบ',
+          receiverName: sale.receiverName,
         ),
       );
     }
@@ -371,6 +449,120 @@ String _customerAddress(Customer? customer) {
   ].where((value) => value != null && value.trim().isNotEmpty);
   final address = parts.join(' ');
   return address.isEmpty ? '-' : address;
+}
+
+String _shopDocumentDescription(Shop shop) {
+  final details = <String>[];
+  final customDescription = shop.description?.trim();
+  final address = shop.address?.trim();
+  final taxId = shop.taxId?.trim();
+  final phone = shop.phone?.trim();
+  if (customDescription != null && customDescription.isNotEmpty) {
+    details.add(customDescription);
+  }
+  if (address != null && address.isNotEmpty) {
+    details.add(address);
+  }
+  if (taxId != null && taxId.isNotEmpty) {
+    details.add('เลขประจำตัวประชาชน $taxId');
+  }
+  if (phone != null && phone.isNotEmpty) {
+    details.add('โทร. $phone');
+  }
+  if (details.isEmpty) {
+    return 'เอกสารสัญญาซื้อขายของ ${shop.name}';
+  }
+  return details.join(' ');
+}
+
+String _contractIntroText({
+  required Sale sale,
+  required Customer? customer,
+  required Shop shop,
+}) {
+  final buyerName = sale.customerName.trim().isEmpty
+      ? 'ผู้ซื้อ'
+      : sale.customerName.trim();
+  final sellerName = shop.name.trim().isEmpty ? 'ผู้ขาย' : shop.name.trim();
+  final customerAddress = _customerAddress(customer);
+  final addressText = customerAddress == '-' ? '' : ' อยู่ที่ $customerAddress';
+  final identityText = _customerIdentityText(customer);
+  final phoneText = _customerPhoneText(customer);
+
+  return 'สัญญาฉบับนี้ทำขึ้นระหว่าง $sellerName ซึ่งต่อไปนี้เรียกว่า '
+      '"ผู้ขาย" ฝ่ายหนึ่ง กับ $buyerName$identityText$addressText$phoneText '
+      'ซึ่งต่อไปนี้เรียกว่า "ผู้ซื้อ" อีกฝ่ายหนึ่ง คู่สัญญาทั้งสองฝ่ายตกลง'
+      'ทำสัญญาซื้อขายสินค้าเงินผ่อนตามรายการและเงื่อนไขดังต่อไปนี้';
+}
+
+String _contractTermsHtml({
+  required Sale sale,
+  required List<SaleInstallment> installments,
+}) {
+  final installmentCount = installments.isEmpty
+      ? sale.installmentCount
+      : installments.length;
+  final firstDueDate = installments.isEmpty
+      ? '-'
+      : _formatThaiDate(installments.first.dueDate);
+  final lastDueDate = installments.isEmpty
+      ? '-'
+      : _formatThaiDate(installments.last.dueDate);
+  final vatText = sale.vatAmount > 0
+      ? ' โดยมีภาษีมูลค่าเพิ่ม ${_money(sale.vatAmount)} บาท'
+      : '';
+  final installmentText = sale.installmentAmount > 0
+      ? ' งวดละประมาณ ${_money(sale.installmentAmount)} บาท'
+      : '';
+  final terms = [
+    'ผู้ขายตกลงขายและผู้ซื้อตกลงซื้อสินค้าตามรายการ จำนวน ราคา และรายละเอียด'
+        'ที่ระบุไว้ในตารางรายการสินค้า โดยให้ถือว่าตารางรายการสินค้าและตาราง'
+        'การชำระเงินเป็นส่วนหนึ่งของสัญญาฉบับนี้',
+    'ราคาซื้อขายรวมทั้งสิ้น ${_money(sale.grandTotal)} บาท$vatText ผู้ซื้อ'
+        'ได้ชำระเงินดาวน์ในวันทำสัญญาเป็นจำนวน ${_money(sale.downPaymentAmount)} '
+        'บาท และมียอดคงเหลือที่ต้องชำระ ${_money(sale.remainingAmount)} บาท',
+    'ยอดคงเหลือดังกล่าวแบ่งชำระเป็น $installmentCount งวด$installmentText '
+        'เริ่มชำระงวดแรกวันที่ $firstDueDate และครบกำหนดงวดสุดท้ายวันที่ '
+        '$lastDueDate หรือตามวันที่ระบุไว้ในตารางการชำระเงิน',
+    'ผู้ซื้อมีหน้าที่ชำระเงินแต่ละงวดให้ครบถ้วนภายในวันครบกำหนด การชำระเงิน'
+        'ทุกครั้งให้บันทึกวันที่จ่าย งวดที่ชำระ จำนวนเงิน และชื่อผู้รับเงินไว้'
+        'ในตารางการชำระเงินหรือหลักฐานรับเงินที่ผู้ขายออกให้',
+    'เมื่อผู้ซื้อได้รับสินค้าแล้ว ให้ตรวจสอบชนิด จำนวน และสภาพสินค้าในขณะรับมอบ '
+        'หากพบความไม่ถูกต้องให้แจ้งผู้ขายทันที ส่วนการรับประกัน การซ่อมแซม '
+        'การเปลี่ยนสินค้า หรือค่าขนส่งเพิ่มเติม ให้เป็นไปตามหลักฐานหรือข้อตกลง'
+        'ที่ผู้ขายกำหนดไว้เป็นลายลักษณ์อักษร',
+    'คู่สัญญาตกลงให้กรรมสิทธิ์ในสินค้าตามสัญญานี้โอนไปยังผู้ซื้อเมื่อผู้ซื้อ'
+        'ชำระราคาสินค้าครบถ้วนแล้ว ในระหว่างที่ยังชำระไม่ครบ ผู้ซื้อจะดูแล'
+        'รักษาสินค้า ไม่ขาย โอน จำนำ ให้เช่า หรือให้บุคคลอื่นครอบครองสินค้า'
+        'โดยไม่ได้รับความยินยอมจากผู้ขาย',
+    'หากผู้ซื้อผิดนัดชำระเงินงวดใดงวดหนึ่ง หรือชำระไม่ครบตามจำนวนที่กำหนด '
+        'ผู้ขายมีสิทธิ์แจ้งเตือน ติดตามทวงถาม ระงับการส่งมอบหรือบริการเพิ่มเติม '
+        'และเรียกให้ผู้ซื้อชำระยอดค้างทั้งหมดพร้อมค่าใช้จ่ายตามจริงที่เกิดขึ้น'
+        'จากการติดตามหนี้เท่าที่กฎหมายอนุญาต',
+    'การผ่อนผัน การเปลี่ยนแปลงวันชำระเงิน การเปลี่ยนแปลงสินค้า หรือเงื่อนไข'
+        'เพิ่มเติมใด ๆ จะมีผลต่อเมื่อมีหลักฐานเป็นหนังสือหรือหลักฐานอิเล็กทรอนิกส์'
+        'ที่ตรวจสอบได้จากผู้ขาย',
+    'คู่สัญญาได้อ่านข้อความในสัญญาฉบับนี้โดยตลอดแล้ว เห็นว่าถูกต้องตรงตาม'
+        'เจตนา จึงลงลายมือชื่อไว้เป็นสำคัญต่อหน้าพยาน',
+  ];
+
+  return terms.map((term) => '<li>${_escapeHtml(term)}</li>').join('\n');
+}
+
+String _customerIdentityText(Customer? customer) {
+  final taxId = customer?.taxId?.trim();
+  if (taxId == null || taxId.isEmpty) {
+    return '';
+  }
+  return ' เลขประจำตัวประชาชน $taxId';
+}
+
+String _customerPhoneText(Customer? customer) {
+  final phone = customer?.phone?.trim();
+  if (phone == null || phone.isEmpty) {
+    return '';
+  }
+  return ' โทร. $phone';
 }
 
 String _escapeHtml(String value) {

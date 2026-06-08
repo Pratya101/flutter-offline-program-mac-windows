@@ -35,7 +35,7 @@ class _CustomerCrudPageState extends State<CustomerCrudPage> {
   }
 
   Future<void> _openCustomerForm([Customer? customer]) async {
-    final saved = await showDialog<bool>(
+    final savedCustomer = await showDialog<Customer>(
       context: context,
       barrierDismissible: false,
       builder: (context) => _CustomerFormDialog(
@@ -44,7 +44,7 @@ class _CustomerCrudPageState extends State<CustomerCrudPage> {
       ),
     );
 
-    if (saved == true) {
+    if (savedCustomer != null) {
       _showMessage(customer == null ? 'สร้างลูกค้าแล้ว' : 'อัปเดตลูกค้าแล้ว');
     }
   }
@@ -104,6 +104,7 @@ class _CustomerCrudPageState extends State<CustomerCrudPage> {
         customer.phone ?? '',
         customer.lineId ?? '',
         customer.taxId ?? '',
+        customer.birthDate == null ? '' : _formatDate(customer.birthDate!),
         customer.province ?? '',
       ].join(' ').toLowerCase();
       return values.contains(_searchText);
@@ -144,6 +145,13 @@ class _CustomerCrudPageState extends State<CustomerCrudPage> {
 
 enum _BlacklistFilter { all, normal, blacklisted }
 
+String _formatNullableDate(DateTime? value) {
+  if (value == null) {
+    return '-';
+  }
+  return _formatDate(value);
+}
+
 class _CustomerToolbar extends StatelessWidget {
   const _CustomerToolbar({
     required this.searchController,
@@ -165,29 +173,30 @@ class _CustomerToolbar extends StatelessWidget {
       icon: const Icon(SolarIconsOutline.userPlusRounded),
       label: const Text('เพิ่มลูกค้า'),
     );
-    final filter = SegmentedButton<_BlacklistFilter>(
-      segments: const [
-        ButtonSegment(
-          value: _BlacklistFilter.all,
-          icon: Icon(SolarIconsOutline.filter),
-          label: Text('ทั้งหมด'),
-        ),
-        ButtonSegment(
-          value: _BlacklistFilter.normal,
-          icon: Icon(SolarIconsOutline.userCheck),
-          label: Text('ปกติ'),
-        ),
-        ButtonSegment(
-          value: _BlacklistFilter.blacklisted,
-          icon: Icon(SolarIconsOutline.forbidden),
-          label: Text('แบล็คลิสต์'),
-        ),
-      ],
-      selected: {blacklistFilter},
-      showSelectedIcon: false,
-      onSelectionChanged: (values) {
-        onBlacklistFilterChanged(values.first);
-      },
+    const filterWidth = 340.0;
+    final filter = SizedBox(
+      width: filterWidth,
+      child: _SaleToggleGroup<_BlacklistFilter>(
+        options: const [
+          _SaleToggleOption(
+            value: _BlacklistFilter.all,
+            icon: SolarIconsOutline.filter,
+            label: 'ทั้งหมด',
+          ),
+          _SaleToggleOption(
+            value: _BlacklistFilter.normal,
+            icon: SolarIconsOutline.userCheck,
+            label: 'ปกติ',
+          ),
+          _SaleToggleOption(
+            value: _BlacklistFilter.blacklisted,
+            icon: SolarIconsOutline.forbidden,
+            label: 'แบล็คลิสต์',
+          ),
+        ],
+        selectedValue: blacklistFilter,
+        onChanged: onBlacklistFilterChanged,
+      ),
     );
     final searchField = TextField(
       controller: searchController,
@@ -280,9 +289,9 @@ class _CustomerTablePanel extends StatelessWidget {
             borderRadius: _cardBorderRadius(),
             child: LayoutBuilder(
               builder: (context, constraints) {
-                final tableMinWidth = constraints.maxWidth > 1200
+                final tableMinWidth = constraints.maxWidth > 1320
                     ? constraints.maxWidth
-                    : 1200.0;
+                    : 1320.0;
 
                 return SingleChildScrollView(
                   child: SingleChildScrollView(
@@ -300,7 +309,8 @@ class _CustomerTablePanel extends StatelessWidget {
                         columns: const [
                           DataColumn(label: Text('ชื่อ-นามสกุล')),
                           DataColumn(label: Text('ชื่อเล่น')),
-                          DataColumn(label: Text('ประเภท')),
+                          DataColumn(label: Text('เลขบัตรประชาชน')),
+                          DataColumn(label: Text('วันเกิด')),
                           DataColumn(label: Text('สถานะ')),
                           DataColumn(label: Text('เบอร์โทร')),
                           DataColumn(label: Text('จังหวัด')),
@@ -312,7 +322,10 @@ class _CustomerTablePanel extends StatelessWidget {
                             cells: [
                               DataCell(Text(customer.name)),
                               DataCell(Text(_displayText(customer.nickname))),
-                              DataCell(_CustomerTypeBadge(type: customer.type)),
+                              DataCell(Text(_displayText(customer.taxId))),
+                              DataCell(
+                                Text(_formatNullableDate(customer.birthDate)),
+                              ),
                               DataCell(
                                 _CustomerBlacklistBadge(
                                   isBlacklisted: customer.isBlacklisted,
@@ -377,8 +390,8 @@ class _CustomerFormDialogState extends State<_CustomerFormDialog> {
   final _nicknameController = TextEditingController();
   final _phoneController = TextEditingController();
   final _lineIdController = TextEditingController();
-  final _taxIdController = TextEditingController();
-  final _companyOfficeTypeController = TextEditingController();
+  final _citizenIdController = TextEditingController();
+  final _birthDateController = TextEditingController();
   final _faxController = TextEditingController();
   final _addressController = TextEditingController();
   final _subDistrictController = TextEditingController();
@@ -388,7 +401,7 @@ class _CustomerFormDialogState extends State<_CustomerFormDialog> {
   final _remarkController = TextEditingController();
 
   var _saving = false;
-  var _type = 'PERSONAL';
+  DateTime? _birthDate;
   var _isBlacklisted = false;
 
   bool get _editing => widget.editingCustomer != null;
@@ -402,8 +415,8 @@ class _CustomerFormDialogState extends State<_CustomerFormDialog> {
       _nicknameController.text = customer.nickname ?? '';
       _phoneController.text = customer.phone ?? '';
       _lineIdController.text = customer.lineId ?? '';
-      _taxIdController.text = customer.taxId ?? '';
-      _companyOfficeTypeController.text = customer.companyOfficeType ?? '';
+      _citizenIdController.text = customer.taxId ?? '';
+      _setBirthDate(customer.birthDate);
       _faxController.text = customer.fax ?? '';
       _addressController.text = customer.address ?? '';
       _subDistrictController.text = customer.subDistrict ?? '';
@@ -411,7 +424,6 @@ class _CustomerFormDialogState extends State<_CustomerFormDialog> {
       _provinceController.text = customer.province ?? '';
       _zipcodeController.text = customer.zipcode ?? '';
       _remarkController.text = customer.remark ?? customer.note ?? '';
-      _type = customer.type == 'COMPANY' ? 'COMPANY' : 'PERSONAL';
       _isBlacklisted = customer.isBlacklisted;
     }
   }
@@ -422,8 +434,8 @@ class _CustomerFormDialogState extends State<_CustomerFormDialog> {
     _nicknameController.dispose();
     _phoneController.dispose();
     _lineIdController.dispose();
-    _taxIdController.dispose();
-    _companyOfficeTypeController.dispose();
+    _citizenIdController.dispose();
+    _birthDateController.dispose();
     _faxController.dispose();
     _addressController.dispose();
     _subDistrictController.dispose();
@@ -447,10 +459,8 @@ class _CustomerFormDialogState extends State<_CustomerFormDialog> {
         phone: _phoneController.text,
         email: widget.editingCustomer?.email,
         lineId: _lineIdController.text,
-        taxId: _taxIdController.text,
-        companyOfficeType: _type == 'COMPANY'
-            ? _companyOfficeTypeController.text
-            : null,
+        citizenId: _citizenIdController.text,
+        birthDate: _birthDate,
         fax: _faxController.text,
         address: _addressController.text,
         subDistrict: _subDistrictController.text,
@@ -458,22 +468,19 @@ class _CustomerFormDialogState extends State<_CustomerFormDialog> {
         province: _provinceController.text,
         zipcode: _zipcodeController.text,
         remark: _remarkController.text,
-        type: _type,
         isBlacklisted: _isBlacklisted,
       );
 
       final customer = widget.editingCustomer;
-      if (customer == null) {
-        await widget.customerService.createCustomer(payload);
-      } else {
-        await widget.customerService.updateCustomer(
-          id: customer.id,
-          payload: payload,
-        );
-      }
+      final savedCustomer = customer == null
+          ? await widget.customerService.createCustomer(payload)
+          : await widget.customerService.updateCustomer(
+              id: customer.id,
+              payload: payload,
+            );
 
       if (mounted) {
-        Navigator.pop(context, true);
+        Navigator.pop(context, savedCustomer);
       }
     } on CustomerException catch (error) {
       _showMessage(error.message);
@@ -500,15 +507,47 @@ class _CustomerFormDialogState extends State<_CustomerFormDialog> {
     return null;
   }
 
-  String? _taxIdValidator(String? value) {
-    final taxId = (value ?? '').replaceAll(RegExp(r'\D'), '');
-    if (_type == 'COMPANY' && taxId.isEmpty) {
-      return 'นิติบุคคลต้องกรอกเลข 13 หลัก';
-    }
-    if (taxId.isNotEmpty && !RegExp(r'^\d{13}$').hasMatch(taxId)) {
+  String? _citizenIdValidator(String? value) {
+    final citizenId = (value ?? '').replaceAll(RegExp(r'\D'), '');
+    if (citizenId.isNotEmpty && !RegExp(r'^\d{13}$').hasMatch(citizenId)) {
       return 'ต้องเป็นตัวเลข 13 หลัก';
     }
     return null;
+  }
+
+  void _setBirthDate(DateTime? value) {
+    _birthDate = value == null
+        ? null
+        : DateTime(value.year, value.month, value.day);
+    _birthDateController.text = _formatNullableDate(_birthDate);
+    if (_birthDate == null) {
+      _birthDateController.clear();
+    }
+  }
+
+  Future<void> _pickBirthDate() async {
+    final now = DateTime.now();
+    final initialDate = _birthDate == null || _birthDate!.isAfter(now)
+        ? DateTime(now.year - 30, now.month, now.day)
+        : _birthDate!;
+    final picked = await showDatePicker(
+      context: context,
+      locale: const Locale('th', 'TH'),
+      helpText: 'เลือกวันเกิด',
+      cancelText: 'ยกเลิก',
+      confirmText: 'ตกลง',
+      initialDate: initialDate,
+      firstDate: DateTime(1900),
+      lastDate: now,
+    );
+    if (picked == null || !mounted) {
+      return;
+    }
+    setState(() => _setBirthDate(picked));
+  }
+
+  void _clearBirthDate() {
+    setState(() => _setBirthDate(null));
   }
 
   @override
@@ -560,15 +599,23 @@ class _CustomerFormDialogState extends State<_CustomerFormDialog> {
                           placeholder: '@lineid',
                           icon: SolarIconsOutline.chatLine,
                         ),
+                        _CustomerDateField(
+                          controller: _birthDateController,
+                          label: 'วัน/เดือน/ปีเกิด',
+                          placeholder: 'เลือกวันเกิด',
+                          selectedDate: _birthDate,
+                          onTap: _pickBirthDate,
+                          onClear: _clearBirthDate,
+                        ),
                       ],
                     ),
                   ],
                 ),
                 const SizedBox(height: 22),
                 _CustomerFormSection(
-                  icon: SolarIconsOutline.suitcase,
+                  icon: SolarIconsOutline.card,
                   iconColor: const Color(0xFF2563EB),
-                  title: 'ข้อมูลทางธุรกิจ',
+                  title: 'ข้อมูลเพิ่มเติม',
                   children: [
                     _CustomerBlacklistSwitch(
                       value: _isBlacklisted,
@@ -577,40 +624,18 @@ class _CustomerFormDialogState extends State<_CustomerFormDialog> {
                       },
                     ),
                     const SizedBox(height: 16),
-                    _CustomerTypeSelector(
-                      value: _type,
-                      onChanged: (value) {
-                        setState(() {
-                          _type = value;
-                          if (_type != 'COMPANY') {
-                            _companyOfficeTypeController.clear();
-                          }
-                        });
-                      },
-                    ),
-                    const SizedBox(height: 16),
                     _CustomerFieldGrid(
                       children: [
                         _CustomerTextField(
-                          controller: _taxIdController,
-                          label: 'เลขประจำตัวผู้เสียภาษี',
-                          placeholder: 'กรอกเลข 13 หลัก',
+                          controller: _citizenIdController,
+                          label: 'เลขบัตรประชาชน',
+                          placeholder: 'กรอกเลขบัตรประชาชน 13 หลัก',
                           icon: SolarIconsOutline.card,
                           keyboardType: TextInputType.number,
                           maxLength: 13,
-                          required: _type == 'COMPANY',
-                          helperText: _type == 'COMPANY'
-                              ? 'นิติบุคคลต้องกรอกเลข 13 หลัก'
-                              : 'บุคคลธรรมดาไม่บังคับกรอก',
-                          validator: _taxIdValidator,
+                          helperText: 'ไม่บังคับกรอก',
+                          validator: _citizenIdValidator,
                         ),
-                        if (_type == 'COMPANY')
-                          _CustomerTextField(
-                            controller: _companyOfficeTypeController,
-                            label: 'ประเภทสำนักงาน',
-                            placeholder: 'เช่น สำนักงานใหญ่',
-                            icon: SolarIconsOutline.buildings,
-                          ),
                         _CustomerTextField(
                           controller: _faxController,
                           label: 'เบอร์แฟกซ์',
@@ -682,7 +707,7 @@ class _CustomerFormDialogState extends State<_CustomerFormDialog> {
       actionsPadding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
       actions: [
         TextButton(
-          onPressed: _saving ? null : () => Navigator.pop(context, false),
+          onPressed: _saving ? null : () => Navigator.pop(context),
           child: const Text('ยกเลิก'),
         ),
         FilledButton.icon(
@@ -750,7 +775,7 @@ class _CustomerDialogHeader extends StatelessWidget {
                     const SizedBox(height: 6),
                     Text(
                       editing
-                          ? 'ปรับปรุงข้อมูลส่วนตัว ข้อมูลการติดต่อ และเลขประจำตัวผู้เสียภาษีของลูกค้า'
+                          ? 'ปรับปรุงข้อมูลส่วนตัว ข้อมูลการติดต่อ และเลขบัตรประชาชนของลูกค้า'
                           : 'กรอกข้อมูลลูกค้าใหม่ตามโครงข้อมูลของ SoftSteel CustomerForm',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: const Color(0xFF64748B),
@@ -898,130 +923,40 @@ class _CustomerTextField extends StatelessWidget {
   }
 }
 
-class _CustomerTypeSelector extends StatelessWidget {
-  const _CustomerTypeSelector({required this.value, required this.onChanged});
-
-  final String value;
-  final ValueChanged<String> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final columns = constraints.maxWidth >= 520 ? 2 : 1;
-        final gap = columns == 2 ? 14.0 : 0.0;
-        final width = columns == 2
-            ? (constraints.maxWidth - gap) / 2
-            : constraints.maxWidth;
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text('ประเภทลูกค้า', style: Theme.of(context).textTheme.labelLarge),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: gap,
-              runSpacing: 12,
-              children: [
-                SizedBox(
-                  width: width,
-                  child: _CustomerTypeOption(
-                    label: 'บุคคลธรรมดา',
-                    value: 'PERSONAL',
-                    icon: SolarIconsOutline.userRounded,
-                    selected: value == 'PERSONAL',
-                    color: const Color(0xFFEA580C),
-                    backgroundColor: const Color(0xFFFFF7ED),
-                    onTap: () => onChanged('PERSONAL'),
-                  ),
-                ),
-                SizedBox(
-                  width: width,
-                  child: _CustomerTypeOption(
-                    label: 'นิติบุคคล',
-                    value: 'COMPANY',
-                    icon: SolarIconsOutline.buildings,
-                    selected: value == 'COMPANY',
-                    color: const Color(0xFF7C3AED),
-                    backgroundColor: const Color(0xFFF5F3FF),
-                    onTap: () => onChanged('COMPANY'),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        );
-      },
-    );
-  }
-}
-
-class _CustomerTypeOption extends StatelessWidget {
-  const _CustomerTypeOption({
+class _CustomerDateField extends StatelessWidget {
+  const _CustomerDateField({
+    required this.controller,
     required this.label,
-    required this.value,
-    required this.icon,
-    required this.selected,
-    required this.color,
-    required this.backgroundColor,
+    required this.placeholder,
+    required this.selectedDate,
     required this.onTap,
+    required this.onClear,
   });
 
+  final TextEditingController controller;
   final String label;
-  final String value;
-  final IconData icon;
-  final bool selected;
-  final Color color;
-  final Color backgroundColor;
+  final String placeholder;
+  final DateTime? selectedDate;
   final VoidCallback onTap;
+  final VoidCallback onClear;
 
   @override
   Widget build(BuildContext context) {
-    final borderColor = selected
-        ? color.withValues(alpha: 0.34)
-        : _surfaceBorderColor;
-    return Material(
-      color: selected ? backgroundColor : _surfaceColor,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: borderColor),
-      ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(13),
-          child: Row(
-            children: [
-              DecoratedBox(
-                decoration: BoxDecoration(
-                  color: selected
-                      ? _surfaceColor.withValues(alpha: 0.72)
-                      : _softSlateColor,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(8),
-                  child: Icon(
-                    icon,
-                    color: selected ? color : const Color(0xFF64748B),
-                  ),
-                ),
+    return TextFormField(
+      controller: controller,
+      readOnly: true,
+      onTap: onTap,
+      decoration: InputDecoration(
+        labelText: label,
+        hintText: placeholder,
+        prefixIcon: const Icon(SolarIconsOutline.calendarMinimalistic),
+        suffixIcon: selectedDate == null
+            ? null
+            : IconButton(
+                tooltip: 'ล้างวันเกิด',
+                onPressed: onClear,
+                icon: const Icon(SolarIconsOutline.closeCircle),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  label,
-                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                    color: selected ? color : const Color(0xFF475569),
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-              if (selected) Icon(SolarIconsOutline.checkCircle, color: color),
-            ],
-          ),
-        ),
       ),
     );
   }
@@ -1110,30 +1045,6 @@ class _CustomerBlacklistBadge extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _CustomerTypeBadge extends StatelessWidget {
-  const _CustomerTypeBadge({required this.type});
-
-  final String type;
-
-  @override
-  Widget build(BuildContext context) {
-    final isCompany = type == 'COMPANY';
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: isCompany ? const Color(0xFFF5F3FF) : const Color(0xFFFFF7ED),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: isCompany ? const Color(0xFFDDD6FE) : const Color(0xFFFED7AA),
-        ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-        child: Text(isCompany ? 'นิติบุคคล' : 'บุคคลธรรมดา'),
       ),
     );
   }

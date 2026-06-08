@@ -258,7 +258,5 @@ class _TrackingAmountCell extends StatelessWidget {
 }
 
 String _formatInstallments(OrderTrackingGroup item) {
-  return item.installments
-      .map((installment) => 'งวดที่ ${installment.installmentNumber}')
-      .join(', ');
+  return '${item.nearestInstallment.installmentNumber}/${item.totalInstallments}';
 }

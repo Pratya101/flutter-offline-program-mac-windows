@@ -34,7 +34,7 @@ class _ProductCrudPageState extends State<ProductCrudPage> {
   }
 
   Future<void> _openProductForm([Product? product]) async {
-    final saved = await showDialog<bool>(
+    final savedProduct = await showDialog<Product>(
       context: context,
       barrierDismissible: false,
       builder: (context) => _ProductFormDialog(
@@ -43,7 +43,7 @@ class _ProductCrudPageState extends State<ProductCrudPage> {
       ),
     );
 
-    if (saved == true) {
+    if (savedProduct != null) {
       _showMessage(product == null ? 'สร้างสินค้าแล้ว' : 'อัปเดตสินค้าแล้ว');
     }
   }
@@ -349,17 +349,15 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
       );
 
       final product = widget.editingProduct;
-      if (product == null) {
-        await widget.productService.createProduct(payload);
-      } else {
-        await widget.productService.updateProduct(
-          id: product.id,
-          payload: payload,
-        );
-      }
+      final savedProduct = product == null
+          ? await widget.productService.createProduct(payload)
+          : await widget.productService.updateProduct(
+              id: product.id,
+              payload: payload,
+            );
 
       if (mounted) {
-        Navigator.pop(context, true);
+        Navigator.pop(context, savedProduct);
       }
     } on ProductException catch (error) {
       _showMessage(error.message);
@@ -461,7 +459,7 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
       actionsPadding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
       actions: [
         TextButton(
-          onPressed: _saving ? null : () => Navigator.pop(context, false),
+          onPressed: _saving ? null : () => Navigator.pop(context),
           child: const Text('ยกเลิก'),
         ),
         FilledButton.icon(

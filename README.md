@@ -1,6 +1,6 @@
-# Offline Desktop Program
+# SoftSale Offline
 
-Flutter desktop starter for a fully offline local-data application on macOS and
+Flutter desktop sales app for fully offline local-data workflows on macOS and
 Windows.
 
 ## Stack

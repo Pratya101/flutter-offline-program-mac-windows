@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:drift/native.dart';
 import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:solar_icons/solar_icons.dart';
@@ -51,6 +52,7 @@ class OfflineProgramApp extends StatefulWidget {
 class _OfflineProgramAppState extends State<OfflineProgramApp> {
   late final AuthService _authService;
   User? _profile;
+  Shop? _shop;
 
   @override
   void initState() {
@@ -66,8 +68,12 @@ class _OfflineProgramAppState extends State<OfflineProgramApp> {
 
   Future<void> _setProfile(User user) async {
     final profile = await _authService.getProfile(user.id);
+    final shop = await _authService.getPrimaryShop();
     if (mounted) {
-      setState(() => _profile = profile);
+      setState(() {
+        _profile = profile;
+        _shop = shop;
+      });
     }
   }
 
@@ -80,14 +86,23 @@ class _OfflineProgramAppState extends State<OfflineProgramApp> {
   }
 
   void _logout() {
-    setState(() => _profile = null);
+    setState(() {
+      _profile = null;
+      _shop = null;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'โปรแกรมออฟไลน์',
+      title: 'SoftSale Offline',
       debugShowCheckedModeBanner: false,
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [Locale('th', 'TH'), Locale('en', 'US')],
       theme: ThemeData(
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(
@@ -194,15 +209,17 @@ class _OfflineProgramAppState extends State<OfflineProgramApp> {
           ),
         ),
       ),
-      home: _profile == null
+      home: _profile == null || _shop == null
           ? LoginPage(authService: _authService, onAuthenticated: _setProfile)
           : HomeShell(
               database: widget.database,
               authService: _authService,
               profile: _profile!,
+              shop: _shop!,
               databasePath: widget.databasePath ?? defaultDatabasePath(),
               onLogout: _logout,
               onProfileChanged: _refreshProfile,
+              onShopChanged: _refreshProfile,
             ),
     );
   }

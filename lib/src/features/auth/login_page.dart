@@ -20,6 +20,11 @@ class _LoginPageState extends State<LoginPage> {
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   final _phoneController = TextEditingController();
+  final _shopNameController = TextEditingController();
+  final _shopDescriptionController = TextEditingController();
+  final _shopPhoneController = TextEditingController();
+  final _shopTaxIdController = TextEditingController();
+  final _shopAddressController = TextEditingController();
 
   var _createMode = false;
   var _submitting = false;
@@ -31,6 +36,11 @@ class _LoginPageState extends State<LoginPage> {
     _usernameController.dispose();
     _passwordController.dispose();
     _phoneController.dispose();
+    _shopNameController.dispose();
+    _shopDescriptionController.dispose();
+    _shopPhoneController.dispose();
+    _shopTaxIdController.dispose();
+    _shopAddressController.dispose();
     super.dispose();
   }
 
@@ -47,6 +57,11 @@ class _LoginPageState extends State<LoginPage> {
               username: _usernameController.text,
               password: _passwordController.text,
               phone: _phoneController.text,
+              shopName: _shopNameController.text,
+              shopDescription: _shopDescriptionController.text,
+              shopPhone: _shopPhoneController.text,
+              shopTaxId: _shopTaxIdController.text,
+              shopAddress: _shopAddressController.text,
             )
           : await widget.authService.login(
               username: _usernameController.text,
@@ -71,6 +86,11 @@ class _LoginPageState extends State<LoginPage> {
       _fullNameController.clear();
       _passwordController.clear();
       _phoneController.clear();
+      _shopNameController.clear();
+      _shopDescriptionController.clear();
+      _shopPhoneController.clear();
+      _shopTaxIdController.clear();
+      _shopAddressController.clear();
     });
   }
 
@@ -170,11 +190,65 @@ class _LoginPageState extends State<LoginPage> {
                           const SizedBox(height: 12),
                           TextFormField(
                             controller: _phoneController,
-                            textInputAction: TextInputAction.done,
-                            onFieldSubmitted: (_) => _submit(),
+                            textInputAction: TextInputAction.next,
                             decoration: const InputDecoration(
                               labelText: 'เบอร์โทร',
                               prefixIcon: Icon(SolarIconsOutline.phone),
+                            ),
+                          ),
+                          const SizedBox(height: 18),
+                          Text(
+                            'ข้อมูลร้าน',
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(fontWeight: FontWeight.w700),
+                          ),
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            controller: _shopNameController,
+                            textInputAction: TextInputAction.next,
+                            validator: _required,
+                            decoration: const InputDecoration(
+                              labelText: 'ชื่อร้าน',
+                              prefixIcon: Icon(SolarIconsOutline.shop),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            controller: _shopDescriptionController,
+                            textInputAction: TextInputAction.next,
+                            maxLines: 2,
+                            decoration: const InputDecoration(
+                              labelText: 'คำอธิบายร้านบนเอกสาร',
+                              prefixIcon: Icon(SolarIconsOutline.documentText),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            controller: _shopPhoneController,
+                            textInputAction: TextInputAction.next,
+                            decoration: const InputDecoration(
+                              labelText: 'เบอร์โทรร้าน',
+                              prefixIcon: Icon(SolarIconsOutline.phoneCalling),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            controller: _shopTaxIdController,
+                            textInputAction: TextInputAction.next,
+                            decoration: const InputDecoration(
+                              labelText: 'เลขประจำตัวผู้เสียภาษี',
+                              prefixIcon: Icon(SolarIconsOutline.documentText),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            controller: _shopAddressController,
+                            textInputAction: TextInputAction.done,
+                            onFieldSubmitted: (_) => _submit(),
+                            maxLines: 2,
+                            decoration: const InputDecoration(
+                              labelText: 'ที่อยู่ร้าน',
+                              prefixIcon: Icon(SolarIconsOutline.mapPoint),
                             ),
                           ),
                         ],

@@ -25,6 +25,8 @@ class SalePayload {
     required this.vatOption,
     required this.downPaymentAmount,
     required this.installmentCount,
+    required this.firstDueDate,
+    this.receiverName = 'ระบบ',
   });
 
   final Customer customer;
@@ -32,6 +34,8 @@ class SalePayload {
   final SaleVatOption vatOption;
   final double downPaymentAmount;
   final int installmentCount;
+  final DateTime firstDueDate;
+  final String receiverName;
 }
 
 class SaleTotals {
@@ -170,8 +174,10 @@ class SaleService {
       downPaymentPercent: totals.downPaymentPercent,
       downPaymentAmount: totals.downPaymentAmount,
       remainingAmount: totals.remainingAmount,
+      receiverName: payload.receiverName,
       installmentCount: totals.installmentCount,
       installmentAmount: totals.installmentAmount,
+      firstDueDate: _dateOnly(payload.firstDueDate),
       items: payload.items.map((item) {
         final lineTotal = _roundMoney(item.product.salePrice * item.quantity);
         return SaleItemDraft(
@@ -204,6 +210,7 @@ class SaleService {
     required String saleId,
     required String installmentId,
     required double amount,
+    String receiverName = 'ระบบ',
   }) async {
     final sale = await _database.findActiveSaleById(saleId);
     if (sale == null) {
@@ -238,6 +245,7 @@ class SaleService {
       installmentNumber: installment.installmentNumber,
       paidAmount: paidAmount,
       paymentAmount: roundedAmount,
+      receiverName: receiverName,
       paidAt: paidAmount >= installment.dueAmount
           ? DateTime.now()
           : installment.paidAt,

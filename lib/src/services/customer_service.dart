@@ -12,11 +12,10 @@ class CustomerException implements Exception {
 class CustomerPayload {
   const CustomerPayload({
     required this.name,
-    required this.type,
     this.nickname,
     this.phone,
-    this.taxId,
-    this.companyOfficeType,
+    this.citizenId,
+    this.birthDate,
     this.fax,
     this.address,
     this.subDistrict,
@@ -30,11 +29,10 @@ class CustomerPayload {
   });
 
   final String name;
-  final String type;
   final String? nickname;
   final String? phone;
-  final String? taxId;
-  final String? companyOfficeType;
+  final String? citizenId;
+  final DateTime? birthDate;
   final String? fax;
   final String? address;
   final String? subDistrict;
@@ -52,14 +50,14 @@ class CustomerService {
 
   final AppDatabase _database;
 
-  Future<void> createCustomer(CustomerPayload payload) async {
+  Future<Customer> createCustomer(CustomerPayload payload) async {
     _validate(payload);
-    await _database.createCustomer(
+    return _database.createCustomer(
       name: payload.name,
       nickname: payload.nickname,
       phone: payload.phone,
-      taxId: _normalizeTaxId(payload.taxId),
-      companyOfficeType: payload.companyOfficeType,
+      taxId: _normalizeCitizenId(payload.citizenId),
+      birthDate: _normalizeBirthDate(payload.birthDate),
       fax: payload.fax,
       address: payload.address,
       subDistrict: payload.subDistrict,
@@ -69,23 +67,23 @@ class CustomerService {
       email: payload.email,
       lineId: payload.lineId,
       remark: payload.remark,
-      type: _normalizeType(payload.type),
+      type: 'PERSONAL',
       isBlacklisted: payload.isBlacklisted,
     );
   }
 
-  Future<void> updateCustomer({
+  Future<Customer> updateCustomer({
     required String id,
     required CustomerPayload payload,
   }) async {
     _validate(payload);
-    await _database.updateCustomer(
+    return _database.updateCustomer(
       id: id,
       name: payload.name,
       nickname: payload.nickname,
       phone: payload.phone,
-      taxId: _normalizeTaxId(payload.taxId),
-      companyOfficeType: payload.companyOfficeType,
+      taxId: _normalizeCitizenId(payload.citizenId),
+      birthDate: _normalizeBirthDate(payload.birthDate),
       fax: payload.fax,
       address: payload.address,
       subDistrict: payload.subDistrict,
@@ -95,7 +93,7 @@ class CustomerService {
       email: payload.email,
       lineId: payload.lineId,
       remark: payload.remark,
-      type: _normalizeType(payload.type),
+      type: 'PERSONAL',
       isBlacklisted: payload.isBlacklisted,
     );
   }
@@ -116,23 +114,20 @@ class CustomerService {
       throw const CustomerException('อีเมลไม่ถูกต้อง');
     }
 
-    final type = _normalizeType(payload.type);
-    final taxId = _normalizeTaxId(payload.taxId);
-    if (type == 'COMPANY' && taxId.isEmpty) {
-      throw const CustomerException('นิติบุคคลต้องกรอกเลขประจำตัวผู้เสียภาษี');
-    }
-    if (taxId.isNotEmpty && !RegExp(r'^\d{13}$').hasMatch(taxId)) {
-      throw const CustomerException(
-        'เลขประจำตัวผู้เสียภาษีต้องเป็นตัวเลข 13 หลัก',
-      );
+    final citizenId = _normalizeCitizenId(payload.citizenId);
+    if (citizenId.isNotEmpty && !RegExp(r'^\d{13}$').hasMatch(citizenId)) {
+      throw const CustomerException('เลขบัตรประชาชนต้องเป็นตัวเลข 13 หลัก');
     }
   }
 }
 
-String _normalizeType(String value) {
-  return value.trim().toUpperCase() == 'COMPANY' ? 'COMPANY' : 'PERSONAL';
+String _normalizeCitizenId(String? value) {
+  return (value ?? '').replaceAll(RegExp(r'\D'), '');
 }
 
-String _normalizeTaxId(String? value) {
-  return (value ?? '').replaceAll(RegExp(r'\D'), '');
+DateTime? _normalizeBirthDate(DateTime? value) {
+  if (value == null) {
+    return null;
+  }
+  return DateTime(value.year, value.month, value.day);
 }

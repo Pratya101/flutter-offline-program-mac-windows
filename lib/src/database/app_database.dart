@@ -13,6 +13,7 @@ class Customers extends Table {
   TextColumn get nickname => text().nullable()();
   TextColumn get phone => text().nullable()();
   TextColumn get taxId => text().named('tax_id').nullable()();
+  DateTimeColumn get birthDate => dateTime().named('birth_date').nullable()();
   TextColumn get companyOfficeType =>
       text().named('company_office_type').nullable()();
   TextColumn get fax => text().nullable()();
@@ -52,6 +53,20 @@ class Users extends Table {
   Set<Column> get primaryKey => {id};
 }
 
+class Shops extends Table {
+  TextColumn get id => text()();
+  TextColumn get name => text()();
+  TextColumn get description => text().nullable()();
+  TextColumn get phone => text().nullable()();
+  TextColumn get taxId => text().named('tax_id').nullable()();
+  TextColumn get address => text().nullable()();
+  DateTimeColumn get createdAt => dateTime().named('created_at')();
+  DateTimeColumn get updatedAt => dateTime().named('updated_at')();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
 class Products extends Table {
   TextColumn get id => text()();
   TextColumn get code => text()();
@@ -80,6 +95,8 @@ class Sales extends Table {
   RealColumn get downPaymentPercent => real().named('down_payment_percent')();
   RealColumn get downPaymentAmount => real().named('down_payment_amount')();
   RealColumn get remainingAmount => real().named('remaining_amount')();
+  TextColumn get receiverName =>
+      text().named('receiver_name').withDefault(const Constant('ระบบ'))();
   IntColumn get installmentCount =>
       integer().named('installment_count').withDefault(const Constant(1))();
   RealColumn get installmentAmount =>
@@ -143,6 +160,7 @@ class SalePaymentLogs extends Table {
   tables: [
     Customers,
     Users,
+    Shops,
     Products,
     Sales,
     SaleItems,
@@ -156,7 +174,7 @@ class AppDatabase extends _$AppDatabase {
   static const _uuid = Uuid();
 
   @override
-  int get schemaVersion => 11;
+  int get schemaVersion => 15;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -209,6 +227,18 @@ class AppDatabase extends _$AppDatabase {
       if (from < 11) {
         await _createSalePaymentLogsTableIfNeeded();
       }
+      if (from < 12) {
+        await m.createTable(shops);
+      }
+      if (from < 13) {
+        await m.addColumn(customers, customers.birthDate);
+      }
+      if (from >= 12 && from < 14) {
+        await m.addColumn(shops, shops.description);
+      }
+      if (from >= 7 && from < 15) {
+        await m.addColumn(sales, sales.receiverName);
+      }
     },
   );
 
@@ -223,11 +253,12 @@ class AppDatabase extends _$AppDatabase {
     return query.watch();
   }
 
-  Future<void> createCustomer({
+  Future<Customer> createCustomer({
     required String name,
     String? nickname,
     String? phone,
     String? taxId,
+    DateTime? birthDate,
     String? companyOfficeType,
     String? fax,
     String? address,
@@ -243,13 +274,15 @@ class AppDatabase extends _$AppDatabase {
     bool isBlacklisted = false,
   }) async {
     final now = DateTime.now();
+    final id = _uuid.v4();
     await into(customers).insert(
       CustomersCompanion.insert(
-        id: _uuid.v4(),
+        id: id,
         name: name.trim(),
         nickname: Value(_blankToNull(nickname)),
         phone: Value(_blankToNull(phone)),
         taxId: Value(_blankToNull(taxId)),
+        birthDate: Value(_dateOnlyOrNull(birthDate)),
         companyOfficeType: Value(_blankToNull(companyOfficeType)),
         fax: Value(_blankToNull(fax)),
         address: Value(_blankToNull(address)),
@@ -267,14 +300,19 @@ class AppDatabase extends _$AppDatabase {
         isBlacklisted: Value(isBlacklisted),
       ),
     );
+
+    return (select(
+      customers,
+    )..where((table) => table.id.equals(id))).getSingle();
   }
 
-  Future<void> updateCustomer({
+  Future<Customer> updateCustomer({
     required String id,
     required String name,
     String? nickname,
     String? phone,
     String? taxId,
+    DateTime? birthDate,
     String? companyOfficeType,
     String? fax,
     String? address,
@@ -294,6 +332,7 @@ class AppDatabase extends _$AppDatabase {
         nickname: Value(_blankToNull(nickname)),
         phone: Value(_blankToNull(phone)),
         taxId: Value(_blankToNull(taxId)),
+        birthDate: Value(_dateOnlyOrNull(birthDate)),
         companyOfficeType: Value(_blankToNull(companyOfficeType)),
         fax: Value(_blankToNull(fax)),
         address: Value(_blankToNull(address)),
@@ -309,6 +348,10 @@ class AppDatabase extends _$AppDatabase {
         isBlacklisted: Value(isBlacklisted),
       ),
     );
+
+    return (select(
+      customers,
+    )..where((table) => table.id.equals(id))).getSingle();
   }
 
   Future<void> softDeleteCustomer(String id) async {
@@ -365,7 +408,7 @@ class AppDatabase extends _$AppDatabase {
     )..where((table) => table.id.equals(id))).getSingle();
   }
 
-  Future<void> updateProduct({
+  Future<Product> updateProduct({
     required String id,
     required String code,
     required String name,
@@ -381,6 +424,10 @@ class AppDatabase extends _$AppDatabase {
         updatedAt: Value(DateTime.now()),
       ),
     );
+
+    return (select(
+      products,
+    )..where((table) => table.id.equals(id))).getSingle();
   }
 
   Future<void> softDeleteProduct(String id) async {
@@ -452,14 +499,17 @@ class AppDatabase extends _$AppDatabase {
     required double downPaymentPercent,
     required double downPaymentAmount,
     required double remainingAmount,
+    String receiverName = 'ระบบ',
     required int installmentCount,
     required double installmentAmount,
+    required DateTime firstDueDate,
     required List<SaleItemDraft> items,
   }) async {
     await _ensureSaleInstallmentsSchema();
 
     final now = DateTime.now();
     final saleId = _uuid.v4();
+    final firstInstallmentDueDate = _dateOnly(firstDueDate);
     final installmentDueAmounts = _buildInstallmentDueAmounts(
       remainingAmount: remainingAmount,
       installmentCount: installmentCount,
@@ -481,6 +531,9 @@ class AppDatabase extends _$AppDatabase {
           downPaymentPercent: downPaymentPercent,
           downPaymentAmount: downPaymentAmount,
           remainingAmount: remainingAmount,
+          receiverName: Value(
+            receiverName.trim().isEmpty ? 'ระบบ' : receiverName.trim(),
+          ),
           installmentCount: Value(installmentCount),
           installmentAmount: Value(installmentAmount),
           createdAt: now,
@@ -510,7 +563,7 @@ class AppDatabase extends _$AppDatabase {
             id: _uuid.v4(),
             saleId: saleId,
             installmentNumber: index + 1,
-            dueDate: _addMonthsClamped(now, index + 1),
+            dueDate: _addMonthsClamped(firstInstallmentDueDate, index),
             dueAmount: installmentDueAmounts[index],
             createdAt: now,
             updatedAt: now,
@@ -669,6 +722,102 @@ class AppDatabase extends _$AppDatabase {
     );
 
     return (select(users)..where((table) => table.id.equals(id))).getSingle();
+  }
+
+  Future<Shop?> findPrimaryShop() {
+    final query = select(shops)
+      ..orderBy([(table) => OrderingTerm(expression: table.createdAt)])
+      ..limit(1);
+
+    return query.getSingleOrNull();
+  }
+
+  Stream<Shop?> watchPrimaryShop() {
+    final query = select(shops)
+      ..orderBy([(table) => OrderingTerm(expression: table.createdAt)])
+      ..limit(1);
+
+    return query.watchSingleOrNull();
+  }
+
+  Future<Shop> getOrCreatePrimaryShop({
+    String? name,
+    String? description,
+    String? phone,
+    String? taxId,
+    String? address,
+  }) async {
+    final existing = await findPrimaryShop();
+    if (existing != null) {
+      return existing;
+    }
+
+    return _createPrimaryShop(
+      name: _blankToNull(name) ?? 'ร้านของฉัน',
+      description: description,
+      phone: phone,
+      taxId: taxId,
+      address: address,
+    );
+  }
+
+  Future<Shop> upsertPrimaryShop({
+    required String name,
+    String? description,
+    String? phone,
+    String? taxId,
+    String? address,
+  }) async {
+    final existing = await findPrimaryShop();
+    if (existing == null) {
+      return _createPrimaryShop(
+        name: name,
+        description: description,
+        phone: phone,
+        taxId: taxId,
+        address: address,
+      );
+    }
+
+    await (update(shops)..where((table) => table.id.equals(existing.id))).write(
+      ShopsCompanion(
+        name: Value(name.trim()),
+        description: Value(_blankToNull(description)),
+        phone: Value(_blankToNull(phone)),
+        taxId: Value(_blankToNull(taxId)),
+        address: Value(_blankToNull(address)),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+
+    return (select(
+      shops,
+    )..where((table) => table.id.equals(existing.id))).getSingle();
+  }
+
+  Future<Shop> _createPrimaryShop({
+    required String name,
+    String? description,
+    String? phone,
+    String? taxId,
+    String? address,
+  }) async {
+    final now = DateTime.now();
+    final id = _uuid.v4();
+    await into(shops).insert(
+      ShopsCompanion.insert(
+        id: id,
+        name: name.trim().isEmpty ? 'ร้านของฉัน' : name.trim(),
+        description: Value(_blankToNull(description)),
+        phone: Value(_blankToNull(phone)),
+        taxId: Value(_blankToNull(taxId)),
+        address: Value(_blankToNull(address)),
+        createdAt: now,
+        updatedAt: now,
+      ),
+    );
+
+    return (select(shops)..where((table) => table.id.equals(id))).getSingle();
   }
 
   Future<void> updateUser({
@@ -865,6 +1014,18 @@ String? _blankToNull(String? value) {
     return null;
   }
   return text;
+}
+
+DateTime? _dateOnlyOrNull(DateTime? value) {
+  if (value == null) {
+    return null;
+  }
+  return _dateOnly(value);
+}
+
+DateTime _dateOnly(DateTime value) {
+  final local = value.toLocal();
+  return DateTime(local.year, local.month, local.day);
 }
 
 String _sqliteTextLiteral(String value) {

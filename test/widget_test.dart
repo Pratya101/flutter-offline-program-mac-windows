@@ -11,9 +11,88 @@ import 'package:offline_desktop_program/src/services/customer_service.dart';
 import 'package:offline_desktop_program/src/services/product_service.dart';
 import 'package:offline_desktop_program/src/services/sale_service.dart';
 import 'package:offline_desktop_program/src/services/tracking_service.dart';
-import 'package:solar_icons/solar_icons.dart';
+
+final _testFirstDueDate = DateTime(2026, 7);
 
 void main() {
+  testWidgets('shell navigation orders primary sales workflows first', (
+    tester,
+  ) async {
+    final database = createInMemoryDatabaseForTests();
+    final now = DateTime(2026, 6, 8);
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1280, 900);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        debugShowCheckedModeBanner: false,
+        home: HomeShell(
+          database: database,
+          authService: AuthService(database),
+          profile: User(
+            id: 'user-1',
+            fullName: 'Alice Admin',
+            username: 'alice',
+            passwordHash: 'hash',
+            passwordSalt: 'salt',
+            phone: null,
+            createdAt: now,
+            updatedAt: now,
+            isDeleted: false,
+          ),
+          shop: Shop(
+            id: 'shop-1',
+            name: 'Alice Steel',
+            description: null,
+            phone: null,
+            taxId: null,
+            address: null,
+            createdAt: now,
+            updatedAt: now,
+          ),
+          databasePath: Future.value('memory://offline_desktop_program.sqlite'),
+          onLogout: () {},
+          onProfileChanged: () async {},
+          onShopChanged: () async {},
+        ),
+      ),
+    );
+
+    expect(find.byType(NavigationRail), findsNothing);
+    expect(find.text('หน้าหลัก'), findsNothing);
+
+    final labels = [
+      'ขาย',
+      'รายการขาย',
+      'ติดตาม',
+      'สินค้า',
+      'ลูกค้า',
+      'ผู้ใช้งาน',
+    ];
+
+    for (final label in labels) {
+      expect(find.byKey(ValueKey('shell-menu-$label')), findsOneWidget);
+    }
+
+    final titleCenterY = tester.getCenter(find.text('SoftSale Offline')).dy;
+    final firstMenuCenterY = tester
+        .getCenter(find.byKey(const ValueKey('shell-menu-ขาย')))
+        .dy;
+    expect((firstMenuCenterY - titleCenterY).abs(), lessThanOrEqualTo(18));
+
+    final positions = labels.map((label) {
+      return tester.getTopLeft(find.byKey(ValueKey('shell-menu-$label'))).dx;
+    }).toList();
+
+    for (var index = 1; index < positions.length; index++) {
+      expect(positions[index], greaterThan(positions[index - 1]));
+    }
+
+    await database.close();
+  });
+
   testWidgets('creates first user and shows profile', (tester) async {
     final database = createInMemoryDatabaseForTests();
     tester.view.devicePixelRatio = 1;
@@ -39,15 +118,24 @@ void main() {
     await tester.enterText(find.byType(TextFormField).at(1), 'alice');
     await tester.enterText(find.byType(TextFormField).at(2), 'secret123');
     await tester.enterText(find.byType(TextFormField).at(3), '0812345678');
+    await tester.enterText(find.byType(TextFormField).at(4), 'Alice Steel');
+    await tester.enterText(
+      find.byType(TextFormField).at(5),
+      'จำหน่ายสินค้าเหล็กและบริการจัดส่ง',
+    );
+    await tester.enterText(find.byType(TextFormField).at(6), '020000001');
+    await tester.enterText(find.byType(TextFormField).at(7), '0105566000000');
+    await tester.enterText(find.byType(TextFormField).at(8), '99 Steel Road');
     await tester.tap(find.text('สร้างบัญชีและเข้าสู่ระบบ'));
     await tester.pumpAndSettle();
 
-    expect(find.text('ยินดีต้อนรับ, Alice Admin'), findsOneWidget);
-    expect(find.text('โปรไฟล์'), findsOneWidget);
-    expect(find.text('alice'), findsOneWidget);
-    expect(find.text('0812345678'), findsOneWidget);
+    expect(find.byKey(const ValueKey('shell-menu-ขาย')), findsOneWidget);
+    expect(find.text('ขาย'), findsWidgets);
+    expect(find.text('ค้นหาลูกค้า'), findsOneWidget);
+    expect(find.text('Alice Admin'), findsWidgets);
+    expect(find.text('Alice Steel'), findsWidgets);
 
-    await tester.tap(find.byIcon(SolarIconsOutline.userSpeakRounded));
+    await tester.tap(find.byKey(const ValueKey('shell-menu-ลูกค้า')));
     await tester.pumpAndSettle();
 
     expect(find.text('ลูกค้า'), findsWidgets);
@@ -86,7 +174,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('บริษัท ทดสอบ จำกัด'), findsOneWidget);
 
-    await tester.tap(find.byIcon(SolarIconsOutline.box));
+    await tester.tap(find.byKey(const ValueKey('shell-menu-สินค้า')));
     await tester.pumpAndSettle();
 
     expect(find.text('สินค้า'), findsWidgets);
@@ -108,7 +196,7 @@ void main() {
     expect(find.text('1,250.50'), findsOneWidget);
     expect(find.text('หมายเหตุสินค้า'), findsOneWidget);
 
-    await tester.tap(find.byIcon(SolarIconsOutline.cartLarge));
+    await tester.tap(find.byKey(const ValueKey('shell-menu-ขาย')));
     await tester.pumpAndSettle();
 
     expect(find.text('ขาย'), findsWidgets);
@@ -225,7 +313,7 @@ void main() {
     );
     expect(
       tester.widget<EditableText>(downPaymentEditable).focusNode.hasFocus,
-      isTrue,
+      isFalse,
     );
     await tester.enterText(downPaymentField, '1234');
     await tester.pump();
@@ -269,14 +357,14 @@ void main() {
     final quantityField = find.byKey(
       const ValueKey('sale-product-quantity-field'),
     );
-    expect(tester.testTextInput.hasAnyClients, isTrue);
+    expect(tester.testTextInput.hasAnyClients, isFalse);
     final quantityEditable = find.descendant(
       of: quantityField,
       matching: find.byType(EditableText),
     );
     expect(
       tester.widget<EditableText>(quantityEditable).focusNode.hasFocus,
-      isTrue,
+      isFalse,
     );
 
     await tester.ensureVisible(quantityField);
@@ -325,8 +413,14 @@ void main() {
       find.byWidgetPredicate(
         (widget) => widget.runtimeType.toString() == '_SaleAccountingRow',
       ),
-      findsNWidgets(6),
+      findsNWidgets(8),
     );
+    expect(
+      find.byKey(const ValueKey('sale-first-due-date-value')),
+      findsOneWidget,
+    );
+    expect(find.text('วันที่ต้องชำระ'), findsOneWidget);
+    expect(find.text('รอบบิล'), findsOneWidget);
     final grandTotalAmount = tester.widget<Text>(
       find.byKey(const ValueKey('sale-summary-grand-total-amount')),
     );
@@ -385,7 +479,21 @@ void main() {
     );
     expect(installmentAmount.data, '200.08');
 
-    await tester.tap(find.byIcon(SolarIconsOutline.usersGroupRounded));
+    await tester.ensureVisible(
+      find.widgetWithText(FilledButton, 'บันทึกการขาย'),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'บันทึกการขาย'));
+    await tester.pumpAndSettle();
+    expect(find.text('ตรวจสอบก่อนบันทึกการขาย'), findsOneWidget);
+    expect(find.text('ข้อมูลลูกค้า'), findsWidgets);
+    expect(find.text('รายการสินค้า'), findsWidgets);
+    expect(find.text('สรุปราคา'), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilledButton, 'Submit'));
+    await tester.pumpAndSettle();
+    expect(find.text('รายละเอียด Order'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('shell-menu-ผู้ใช้งาน')));
     await tester.pumpAndSettle();
 
     expect(find.byType(DataTable), findsOneWidget);
@@ -445,14 +553,13 @@ void main() {
     final customerService = CustomerService(database);
 
     await customerService.createCustomer(
-      const CustomerPayload(
+      CustomerPayload(
         name: 'Acme Customer',
         nickname: 'Acme',
         phone: '0811111111',
         email: 'billing@acme.test',
-        taxId: '1234567890123',
-        type: 'COMPANY',
-        companyOfficeType: 'สำนักงานใหญ่',
+        citizenId: '1234567890123',
+        birthDate: DateTime(1990, 1, 2),
         address: '99 Test Road',
         province: 'กรุงเทพมหานคร',
         remark: 'ลูกค้าทดสอบ',
@@ -463,18 +570,19 @@ void main() {
     var customers = await database.watchActiveCustomers().first;
     expect(customers, hasLength(1));
     expect(customers.single.name, 'Acme Customer');
-    expect(customers.single.type, 'COMPANY');
+    expect(customers.single.type, 'PERSONAL');
     expect(customers.single.taxId, '1234567890123');
+    expect(customers.single.birthDate, DateTime(1990, 1, 2));
     expect(customers.single.isBlacklisted, isTrue);
 
     await customerService.updateCustomer(
       id: customers.single.id,
-      payload: const CustomerPayload(
+      payload: CustomerPayload(
         name: 'Acme Customer Updated',
         nickname: 'Updated',
         phone: '0822222222',
         email: 'updated@acme.test',
-        type: 'PERSONAL',
+        birthDate: DateTime(1991, 3, 4),
         province: 'ชลบุรี',
         isBlacklisted: false,
       ),
@@ -484,6 +592,7 @@ void main() {
     expect(customers.single.name, 'Acme Customer Updated');
     expect(customers.single.nickname, 'Updated');
     expect(customers.single.type, 'PERSONAL');
+    expect(customers.single.birthDate, DateTime(1991, 3, 4));
     expect(customers.single.province, 'ชลบุรี');
     expect(customers.single.isBlacklisted, isFalse);
 
@@ -493,11 +602,7 @@ void main() {
 
     expect(
       customerService.createCustomer(
-        const CustomerPayload(
-          name: 'Invalid Company',
-          type: 'COMPANY',
-          taxId: '123',
-        ),
+        const CustomerPayload(name: 'Invalid Citizen', citizenId: '123'),
       ),
       throwsA(isA<CustomerException>()),
     );
@@ -572,7 +677,7 @@ void main() {
     final saleService = SaleService(database);
 
     await customerService.createCustomer(
-      const CustomerPayload(name: 'ลูกค้าทดสอบ', type: 'PERSONAL'),
+      const CustomerPayload(name: 'ลูกค้าทดสอบ'),
     );
     final customer = (await database.watchActiveCustomers().first).single;
     final product = await productService.createProduct(
@@ -624,6 +729,7 @@ void main() {
         vatOption: SaleVatOption.none,
         downPaymentAmount: 3400,
         installmentCount: 10,
+        firstDueDate: _testFirstDueDate,
       ),
     );
     final saleItems = await database.getSaleItems(sale.id);
@@ -650,6 +756,7 @@ void main() {
           vatOption: SaleVatOption.none,
           downPaymentAmount: 2400,
           installmentCount: 10,
+          firstDueDate: _testFirstDueDate,
         ),
       ),
       throwsA(isA<SaleException>()),
@@ -663,6 +770,7 @@ void main() {
           vatOption: SaleVatOption.none,
           downPaymentAmount: 12001,
           installmentCount: 10,
+          firstDueDate: _testFirstDueDate,
         ),
       ),
       throwsA(isA<SaleException>()),
@@ -676,6 +784,7 @@ void main() {
           vatOption: SaleVatOption.none,
           downPaymentAmount: 1200,
           installmentCount: 11,
+          firstDueDate: _testFirstDueDate,
         ),
       ),
       throwsA(isA<SaleException>()),
@@ -693,11 +802,7 @@ void main() {
       final saleService = SaleService(database);
 
       await customerService.createCustomer(
-        const CustomerPayload(
-          name: 'ลูกค้างวด',
-          type: 'PERSONAL',
-          phone: '0890001111',
-        ),
+        const CustomerPayload(name: 'ลูกค้างวด', phone: '0890001111'),
       );
       final customer = (await database.watchActiveCustomers().first).single;
       final product = await productService.createProduct(
@@ -711,6 +816,8 @@ void main() {
           vatOption: SaleVatOption.none,
           downPaymentAmount: 100,
           installmentCount: 3,
+          firstDueDate: _testFirstDueDate,
+          receiverName: 'Alice Admin',
         ),
       );
 
@@ -730,6 +837,7 @@ void main() {
         saleId: sale.id,
         installmentId: detail.installments.first.id,
         amount: 300,
+        receiverName: 'Alice Admin',
       );
 
       detail = await saleService.getSalePaymentDetail(sale.id);
@@ -742,7 +850,7 @@ void main() {
       expect(paymentLogs, hasLength(1));
       expect(paymentLogs.single.installmentNumber, 1);
       expect(paymentLogs.single.paidAmount, 300);
-      expect(paymentLogs.single.receiverName, 'ระบบ');
+      expect(paymentLogs.single.receiverName, 'Alice Admin');
 
       expect(
         saleService.recordInstallmentPayment(
@@ -765,11 +873,19 @@ void main() {
       final productService = ProductService(database);
       final saleService = SaleService(database);
 
+      await database.upsertPrimaryShop(
+        name: 'ร้านทดสอบไดนามิก',
+        phone: '02-222-3333',
+        taxId: '0105566000000',
+        address: '88 ถนนทดสอบ',
+        description: 'จำหน่ายเฟอร์นิเจอร์สำนักงานและบริการจัดส่ง',
+      );
+
       await customerService.createCustomer(
         const CustomerPayload(
           name: 'ลูกค้าสัญญา',
-          type: 'PERSONAL',
           phone: '0891234567',
+          citizenId: '1234567890123',
           address: '99 หมู่ 1',
           subDistrict: 'ในเมือง',
           district: 'เมือง',
@@ -787,6 +903,8 @@ void main() {
           vatOption: SaleVatOption.none,
           downPaymentAmount: 100,
           installmentCount: 3,
+          firstDueDate: _testFirstDueDate,
+          receiverName: 'Alice Admin',
         ),
       );
       final detail = await saleService.getSalePaymentDetail(sale.id);
@@ -795,6 +913,7 @@ void main() {
         saleId: sale.id,
         installmentId: detail.installments.first.id,
         amount: 300,
+        receiverName: 'Alice Admin',
       );
 
       final html = await SaleContractPrintService(
@@ -802,15 +921,44 @@ void main() {
       ).buildContractHtml(sale.id);
 
       expect(html, contains('หนังสือสัญญาซื้อขาย'));
+      expect(html, contains('contract-print-header'));
+      expect(html, contains('display: table-header-group'));
+      expect(html, contains('ร้านทดสอบไดนามิก'));
+      expect(html, contains('จำหน่ายเฟอร์นิเจอร์สำนักงานและบริการจัดส่ง'));
+      expect(html, contains('02-222-3333'));
+      expect(html, contains('88 ถนนทดสอบ'));
+      expect(html, contains('เลขประจำตัวประชาชน 1234567890123'));
+      expect(html, contains('เลขประจำตัวประชาชน 0105566000000'));
+      expect(html, isNot(contains('เลขประจำตัว/เลขผู้เสียภาษี')));
+      expect(html, isNot(contains('เลขประจำตัวผู้เสียภาษี')));
+      expect(html, isNot(contains('ร้าน ดี ดี เฟอร์นิเจอร์')));
       expect(html, contains('ลูกค้าสัญญา'));
       expect(html, contains('ตู้เหล็ก'));
       expect(html, contains('ตารางการชำระเงิน'));
       expect(html, contains('วันที่จ่าย'));
       expect(html, contains('จำนวนเงิน'));
       expect(html, contains('ผู้รับเงิน'));
+      expect(html, contains('payment-signature-grid'));
+      expect('<div class="signature-row">'.allMatches(html), hasLength(4));
+      expect(html, contains('<span class="signature-label">ผู้เช่า</span>'));
+      expect(html, contains('<span class="signature-label">ผู้ใช้เช่า</span>'));
+      expect(
+        html,
+        contains('<span class="signature-label">ผู้ค้ำประกัน</span>'),
+      );
+      expect(html, contains('<span class="signature-label">พยาน</span>'));
+      expect(
+        html,
+        isNot(contains('<span class="signature-label">ผู้ขาย</span>')),
+      );
+      expect(
+        html,
+        isNot(contains('<span class="signature-label">ผู้ซื้อ</span>')),
+      );
       expect(html, contains('งวดที่ 1'));
       expect(html, contains('300.00'));
-      expect(html, contains('ระบบ'));
+      expect(html, contains('Alice Admin'));
+      expect(html, isNot(contains('>ระบบ<')));
 
       await database.close();
     },
@@ -823,7 +971,7 @@ void main() {
     final saleService = SaleService(database);
 
     await customerService.createCustomer(
-      const CustomerPayload(name: 'ลูกค้าครบรอบ', type: 'PERSONAL'),
+      const CustomerPayload(name: 'ลูกค้าครบรอบ'),
     );
     final customer = (await database.watchActiveCustomers().first).single;
     final product = await productService.createProduct(
@@ -837,6 +985,7 @@ void main() {
         vatOption: SaleVatOption.none,
         downPaymentAmount: 0,
         installmentCount: 3,
+        firstDueDate: _testFirstDueDate,
       ),
     );
     final rows = await database
@@ -853,9 +1002,9 @@ ORDER BY installment_number
 
     expect(rows.map((row) => row.read<int>('installment_number')), [1, 2, 3]);
     expect(rows.map((row) => row.read<int>('due_date')), [
-      _unixSeconds(_addMonthsClamped(sale.createdAt, 1)),
-      _unixSeconds(_addMonthsClamped(sale.createdAt, 2)),
-      _unixSeconds(_addMonthsClamped(sale.createdAt, 3)),
+      _unixSeconds(_testFirstDueDate),
+      _unixSeconds(_addMonthsClamped(_testFirstDueDate, 1)),
+      _unixSeconds(_addMonthsClamped(_testFirstDueDate, 2)),
     ]);
 
     await database.close();
@@ -869,13 +1018,13 @@ ORDER BY installment_number
     final trackingService = TrackingService(database);
 
     await customerService.createCustomer(
-      const CustomerPayload(name: 'ลูกค้าใกล้ถึงกำหนด', type: 'PERSONAL'),
+      const CustomerPayload(name: 'ลูกค้าใกล้ถึงกำหนด'),
     );
     await customerService.createCustomer(
-      const CustomerPayload(name: 'ลูกค้ากำหนดถัดไป', type: 'PERSONAL'),
+      const CustomerPayload(name: 'ลูกค้ากำหนดถัดไป'),
     );
     await customerService.createCustomer(
-      const CustomerPayload(name: 'ลูกค้าชำระแล้ว', type: 'PERSONAL'),
+      const CustomerPayload(name: 'ลูกค้าชำระแล้ว'),
     );
     final customers = await database.watchActiveCustomers().first;
     final product = await productService.createProduct(
@@ -891,6 +1040,7 @@ ORDER BY installment_number
         vatOption: SaleVatOption.none,
         downPaymentAmount: 0,
         installmentCount: 1,
+        firstDueDate: _testFirstDueDate,
       ),
     );
     final nearestSale = await saleService.createSale(
@@ -902,6 +1052,7 @@ ORDER BY installment_number
         vatOption: SaleVatOption.none,
         downPaymentAmount: 0,
         installmentCount: 2,
+        firstDueDate: _testFirstDueDate,
       ),
     );
     final paidSale = await saleService.createSale(
@@ -911,6 +1062,7 @@ ORDER BY installment_number
         vatOption: SaleVatOption.none,
         downPaymentAmount: 0,
         installmentCount: 1,
+        firstDueDate: _testFirstDueDate,
       ),
     );
 
@@ -963,6 +1115,41 @@ ORDER BY installment_number
     await database.close();
   });
 
+  testWidgets('tracking page shows compact installment progress', (
+    tester,
+  ) async {
+    final database = createInMemoryDatabaseForTests();
+    final trackingService = _FakeTrackingService(database, [
+      OrderTrackingGroup(
+        saleId: 'sale-1',
+        saleNumber: 'SALE-TEST',
+        customerId: 'customer-1',
+        customerName: 'ลูกค้าค้างงวด',
+        totalInstallments: 10,
+        installments: List.generate(
+          10,
+          (index) => _trackingItem(
+            installmentNumber: index + 1,
+            totalInstallments: 10,
+          ),
+        ),
+      ),
+    ]);
+
+    await tester.pumpWidget(
+      MaterialApp(home: TrackingPage(trackingService: trackingService)),
+    );
+    await tester.pump();
+
+    expect(find.text('1/10'), findsOneWidget);
+    expect(find.text('10 งวดค้าง'), findsOneWidget);
+    expect(find.textContaining('งวดที่ 1, งวดที่ 2'), findsNothing);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+    await database.close();
+  });
+
   test(
     'sale service repairs missing installment table before saving sale',
     () async {
@@ -972,7 +1159,7 @@ ORDER BY installment_number
       final saleService = SaleService(database);
 
       await customerService.createCustomer(
-        const CustomerPayload(name: 'ลูกค้าฐานข้อมูลเก่า', type: 'PERSONAL'),
+        const CustomerPayload(name: 'ลูกค้าฐานข้อมูลเก่า'),
       );
       final customer = (await database.watchActiveCustomers().first).single;
       final product = await productService.createProduct(
@@ -988,6 +1175,7 @@ ORDER BY installment_number
           vatOption: SaleVatOption.none,
           downPaymentAmount: 360,
           installmentCount: 10,
+          firstDueDate: _testFirstDueDate,
         ),
       );
       final detail = await saleService.getSalePaymentDetail(sale.id);
@@ -1028,8 +1216,7 @@ ORDER BY installment_number
       await customerService.createCustomer(
         const CustomerPayload(
           name: 'บริษัท รายการขาย จำกัด',
-          type: 'COMPANY',
-          taxId: '1234567890123',
+          citizenId: '1234567890123',
           phone: '0812223333',
         ),
       );
@@ -1052,6 +1239,7 @@ ORDER BY installment_number
           vatOption: SaleVatOption.none,
           downPaymentAmount: 12345678.9,
           installmentCount: 10,
+          firstDueDate: _testFirstDueDate,
         ),
       );
     });
@@ -1059,7 +1247,11 @@ ORDER BY installment_number
       MaterialApp(
         debugShowCheckedModeBanner: false,
         home: Scaffold(
-          body: SaleListPage(database: database, saleService: saleService),
+          body: SaleListPage(
+            database: database,
+            saleService: saleService,
+            receiverName: 'Alice Admin',
+          ),
         ),
       ),
     );
@@ -1152,6 +1344,35 @@ ORDER BY installment_number
     await tester.pump(const Duration(milliseconds: 1));
     await tester.runAsync(database.close);
   });
+}
+
+class _FakeTrackingService extends TrackingService {
+  const _FakeTrackingService(super.database, this._items);
+
+  final List<OrderTrackingGroup> _items;
+
+  @override
+  Stream<List<OrderTrackingGroup>> watchPendingOrders() {
+    return Stream.value(_items);
+  }
+}
+
+InstallmentTrackingItem _trackingItem({
+  required int installmentNumber,
+  required int totalInstallments,
+}) {
+  return InstallmentTrackingItem(
+    saleId: 'sale-1',
+    saleNumber: 'SALE-TEST',
+    customerId: 'customer-1',
+    customerName: 'ลูกค้าค้างงวด',
+    installmentId: 'installment-$installmentNumber',
+    installmentNumber: installmentNumber,
+    totalInstallments: totalInstallments,
+    dueAmount: 100,
+    paidAmount: 0,
+    dueDate: DateTime.now().add(Duration(days: installmentNumber)),
+  );
 }
 
 DateTime _addMonthsClamped(DateTime value, int months) {

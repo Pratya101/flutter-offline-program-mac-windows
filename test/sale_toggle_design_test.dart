@@ -23,10 +23,11 @@ void main() {
     await tester.enterText(find.byType(TextFormField).at(0), 'Admin');
     await tester.enterText(find.byType(TextFormField).at(1), 'admin');
     await tester.enterText(find.byType(TextFormField).at(2), 'password');
+    await tester.enterText(find.byType(TextFormField).at(4), 'Admin Shop');
     await tester.tap(find.text('สร้างบัญชีและเข้าสู่ระบบ'));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('ขาย'));
+    await tester.tap(find.byKey(const ValueKey('shell-menu-ขาย')));
     await tester.pumpAndSettle();
 
     expect(find.byType(SegmentedButton), findsNothing);

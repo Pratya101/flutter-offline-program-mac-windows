@@ -24,6 +24,11 @@ class AuthService {
     required String username,
     required String password,
     String? phone,
+    String? shopName,
+    String? shopDescription,
+    String? shopPhone,
+    String? shopTaxId,
+    String? shopAddress,
   }) async {
     _validateRequired(fullName, 'ชื่อ-นามสกุล');
     _validateRequired(username, 'ชื่อผู้ใช้');
@@ -31,13 +36,36 @@ class AuthService {
     await _assertUsernameAvailable(username);
 
     final salt = _createSalt();
-    return _database.createUser(
-      fullName: fullName,
-      username: username,
-      passwordHash: _hashPassword(password, salt),
-      passwordSalt: salt,
-      phone: phone,
-    );
+    return _database.transaction(() async {
+      final user = await _database.createUser(
+        fullName: fullName,
+        username: username,
+        passwordHash: _hashPassword(password, salt),
+        passwordSalt: salt,
+        phone: phone,
+      );
+
+      final hasShopInput = [
+        shopName,
+        shopDescription,
+        shopPhone,
+        shopTaxId,
+        shopAddress,
+      ].any((value) => (value ?? '').trim().isNotEmpty);
+      if (hasShopInput) {
+        await _database.upsertPrimaryShop(
+          name: _fallbackShopName(shopName),
+          description: shopDescription,
+          phone: shopPhone,
+          taxId: shopTaxId,
+          address: shopAddress,
+        );
+      } else {
+        await _database.getOrCreatePrimaryShop();
+      }
+
+      return user;
+    });
   }
 
   Future<User> login({
@@ -67,6 +95,27 @@ class AuthService {
     }
 
     return user;
+  }
+
+  Future<Shop> getPrimaryShop() {
+    return _database.getOrCreatePrimaryShop();
+  }
+
+  Future<Shop> updatePrimaryShop({
+    required String name,
+    String? description,
+    String? phone,
+    String? taxId,
+    String? address,
+  }) {
+    _validateRequired(name, 'ชื่อร้าน');
+    return _database.upsertPrimaryShop(
+      name: name,
+      description: description,
+      phone: phone,
+      taxId: taxId,
+      address: address,
+    );
   }
 
   Future<void> updateUser({
@@ -117,6 +166,14 @@ class AuthService {
       throw AuthException('กรุณากรอก$fieldName');
     }
   }
+}
+
+String _fallbackShopName(String? value) {
+  final name = value?.trim();
+  if (name == null || name.isEmpty) {
+    return 'ร้านของฉัน';
+  }
+  return name;
 }
 
 String _createSalt() {

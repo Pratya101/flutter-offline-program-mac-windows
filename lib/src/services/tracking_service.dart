@@ -10,6 +10,7 @@ class InstallmentTrackingItem {
     required this.customerName,
     required this.installmentId,
     required this.installmentNumber,
+    required this.totalInstallments,
     required this.dueAmount,
     required this.paidAmount,
     required this.dueDate,
@@ -21,6 +22,7 @@ class InstallmentTrackingItem {
   final String customerName;
   final String installmentId;
   final int installmentNumber;
+  final int totalInstallments;
   final double dueAmount;
   final double paidAmount;
   final DateTime dueDate;
@@ -53,6 +55,7 @@ class OrderTrackingGroup {
     required this.saleNumber,
     required this.customerId,
     required this.customerName,
+    required this.totalInstallments,
     required this.installments,
   });
 
@@ -60,6 +63,7 @@ class OrderTrackingGroup {
   final String saleNumber;
   final String customerId;
   final String customerName;
+  final int totalInstallments;
   final List<InstallmentTrackingItem> installments;
 
   InstallmentTrackingItem get nearestInstallment => installments.first;
@@ -100,6 +104,7 @@ SELECT
   s.sale_number AS sale_number,
   s.customer_id AS customer_id,
   s.customer_name AS customer_name,
+  s.installment_count AS total_installments,
   si.id AS installment_id,
   si.installment_number AS installment_number,
   si.due_amount AS due_amount,
@@ -124,6 +129,7 @@ ORDER BY si.due_date ASC, s.sale_number ASC, si.installment_number ASC;
               customerName: row.read<String>('customer_name'),
               installmentId: row.read<String>('installment_id'),
               installmentNumber: row.read<int>('installment_number'),
+              totalInstallments: row.read<int>('total_installments'),
               dueAmount: row.read<double>('due_amount'),
               paidAmount: row.read<double>('paid_amount'),
               dueDate: DateTime.fromMillisecondsSinceEpoch(
@@ -157,6 +163,7 @@ ORDER BY si.due_date ASC, s.sale_number ASC, si.installment_number ASC;
             saleNumber: first.saleNumber,
             customerId: first.customerId,
             customerName: first.customerName,
+            totalInstallments: first.totalInstallments,
             installments: List.unmodifiable(installments),
           ),
         );

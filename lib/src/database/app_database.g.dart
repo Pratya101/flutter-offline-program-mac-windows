@@ -56,6 +56,17 @@ class $CustomersTable extends Customers
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _birthDateMeta = const VerificationMeta(
+    'birthDate',
+  );
+  @override
+  late final GeneratedColumn<DateTime> birthDate = GeneratedColumn<DateTime>(
+    'birth_date',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _companyOfficeTypeMeta = const VerificationMeta(
     'companyOfficeType',
   );
@@ -237,6 +248,7 @@ class $CustomersTable extends Customers
     nickname,
     phone,
     taxId,
+    birthDate,
     companyOfficeType,
     fax,
     address,
@@ -295,6 +307,12 @@ class $CustomersTable extends Customers
       context.handle(
         _taxIdMeta,
         taxId.isAcceptableOrUnknown(data['tax_id']!, _taxIdMeta),
+      );
+    }
+    if (data.containsKey('birth_date')) {
+      context.handle(
+        _birthDateMeta,
+        birthDate.isAcceptableOrUnknown(data['birth_date']!, _birthDateMeta),
       );
     }
     if (data.containsKey('company_office_type')) {
@@ -435,6 +453,10 @@ class $CustomersTable extends Customers
         DriftSqlType.string,
         data['${effectivePrefix}tax_id'],
       ),
+      birthDate: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}birth_date'],
+      ),
       companyOfficeType: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}company_office_type'],
@@ -514,6 +536,7 @@ class Customer extends DataClass implements Insertable<Customer> {
   final String? nickname;
   final String? phone;
   final String? taxId;
+  final DateTime? birthDate;
   final String? companyOfficeType;
   final String? fax;
   final String? address;
@@ -536,6 +559,7 @@ class Customer extends DataClass implements Insertable<Customer> {
     this.nickname,
     this.phone,
     this.taxId,
+    this.birthDate,
     this.companyOfficeType,
     this.fax,
     this.address,
@@ -566,6 +590,9 @@ class Customer extends DataClass implements Insertable<Customer> {
     }
     if (!nullToAbsent || taxId != null) {
       map['tax_id'] = Variable<String>(taxId);
+    }
+    if (!nullToAbsent || birthDate != null) {
+      map['birth_date'] = Variable<DateTime>(birthDate);
     }
     if (!nullToAbsent || companyOfficeType != null) {
       map['company_office_type'] = Variable<String>(companyOfficeType);
@@ -621,6 +648,9 @@ class Customer extends DataClass implements Insertable<Customer> {
       taxId: taxId == null && nullToAbsent
           ? const Value.absent()
           : Value(taxId),
+      birthDate: birthDate == null && nullToAbsent
+          ? const Value.absent()
+          : Value(birthDate),
       companyOfficeType: companyOfficeType == null && nullToAbsent
           ? const Value.absent()
           : Value(companyOfficeType),
@@ -669,6 +699,7 @@ class Customer extends DataClass implements Insertable<Customer> {
       nickname: serializer.fromJson<String?>(json['nickname']),
       phone: serializer.fromJson<String?>(json['phone']),
       taxId: serializer.fromJson<String?>(json['taxId']),
+      birthDate: serializer.fromJson<DateTime?>(json['birthDate']),
       companyOfficeType: serializer.fromJson<String?>(
         json['companyOfficeType'],
       ),
@@ -698,6 +729,7 @@ class Customer extends DataClass implements Insertable<Customer> {
       'nickname': serializer.toJson<String?>(nickname),
       'phone': serializer.toJson<String?>(phone),
       'taxId': serializer.toJson<String?>(taxId),
+      'birthDate': serializer.toJson<DateTime?>(birthDate),
       'companyOfficeType': serializer.toJson<String?>(companyOfficeType),
       'fax': serializer.toJson<String?>(fax),
       'address': serializer.toJson<String?>(address),
@@ -723,6 +755,7 @@ class Customer extends DataClass implements Insertable<Customer> {
     Value<String?> nickname = const Value.absent(),
     Value<String?> phone = const Value.absent(),
     Value<String?> taxId = const Value.absent(),
+    Value<DateTime?> birthDate = const Value.absent(),
     Value<String?> companyOfficeType = const Value.absent(),
     Value<String?> fax = const Value.absent(),
     Value<String?> address = const Value.absent(),
@@ -745,6 +778,7 @@ class Customer extends DataClass implements Insertable<Customer> {
     nickname: nickname.present ? nickname.value : this.nickname,
     phone: phone.present ? phone.value : this.phone,
     taxId: taxId.present ? taxId.value : this.taxId,
+    birthDate: birthDate.present ? birthDate.value : this.birthDate,
     companyOfficeType: companyOfficeType.present
         ? companyOfficeType.value
         : this.companyOfficeType,
@@ -771,6 +805,7 @@ class Customer extends DataClass implements Insertable<Customer> {
       nickname: data.nickname.present ? data.nickname.value : this.nickname,
       phone: data.phone.present ? data.phone.value : this.phone,
       taxId: data.taxId.present ? data.taxId.value : this.taxId,
+      birthDate: data.birthDate.present ? data.birthDate.value : this.birthDate,
       companyOfficeType: data.companyOfficeType.present
           ? data.companyOfficeType.value
           : this.companyOfficeType,
@@ -804,6 +839,7 @@ class Customer extends DataClass implements Insertable<Customer> {
           ..write('nickname: $nickname, ')
           ..write('phone: $phone, ')
           ..write('taxId: $taxId, ')
+          ..write('birthDate: $birthDate, ')
           ..write('companyOfficeType: $companyOfficeType, ')
           ..write('fax: $fax, ')
           ..write('address: $address, ')
@@ -831,6 +867,7 @@ class Customer extends DataClass implements Insertable<Customer> {
     nickname,
     phone,
     taxId,
+    birthDate,
     companyOfficeType,
     fax,
     address,
@@ -857,6 +894,7 @@ class Customer extends DataClass implements Insertable<Customer> {
           other.nickname == this.nickname &&
           other.phone == this.phone &&
           other.taxId == this.taxId &&
+          other.birthDate == this.birthDate &&
           other.companyOfficeType == this.companyOfficeType &&
           other.fax == this.fax &&
           other.address == this.address &&
@@ -881,6 +919,7 @@ class CustomersCompanion extends UpdateCompanion<Customer> {
   final Value<String?> nickname;
   final Value<String?> phone;
   final Value<String?> taxId;
+  final Value<DateTime?> birthDate;
   final Value<String?> companyOfficeType;
   final Value<String?> fax;
   final Value<String?> address;
@@ -904,6 +943,7 @@ class CustomersCompanion extends UpdateCompanion<Customer> {
     this.nickname = const Value.absent(),
     this.phone = const Value.absent(),
     this.taxId = const Value.absent(),
+    this.birthDate = const Value.absent(),
     this.companyOfficeType = const Value.absent(),
     this.fax = const Value.absent(),
     this.address = const Value.absent(),
@@ -928,6 +968,7 @@ class CustomersCompanion extends UpdateCompanion<Customer> {
     this.nickname = const Value.absent(),
     this.phone = const Value.absent(),
     this.taxId = const Value.absent(),
+    this.birthDate = const Value.absent(),
     this.companyOfficeType = const Value.absent(),
     this.fax = const Value.absent(),
     this.address = const Value.absent(),
@@ -955,6 +996,7 @@ class CustomersCompanion extends UpdateCompanion<Customer> {
     Expression<String>? nickname,
     Expression<String>? phone,
     Expression<String>? taxId,
+    Expression<DateTime>? birthDate,
     Expression<String>? companyOfficeType,
     Expression<String>? fax,
     Expression<String>? address,
@@ -979,6 +1021,7 @@ class CustomersCompanion extends UpdateCompanion<Customer> {
       if (nickname != null) 'nickname': nickname,
       if (phone != null) 'phone': phone,
       if (taxId != null) 'tax_id': taxId,
+      if (birthDate != null) 'birth_date': birthDate,
       if (companyOfficeType != null) 'company_office_type': companyOfficeType,
       if (fax != null) 'fax': fax,
       if (address != null) 'address': address,
@@ -1005,6 +1048,7 @@ class CustomersCompanion extends UpdateCompanion<Customer> {
     Value<String?>? nickname,
     Value<String?>? phone,
     Value<String?>? taxId,
+    Value<DateTime?>? birthDate,
     Value<String?>? companyOfficeType,
     Value<String?>? fax,
     Value<String?>? address,
@@ -1029,6 +1073,7 @@ class CustomersCompanion extends UpdateCompanion<Customer> {
       nickname: nickname ?? this.nickname,
       phone: phone ?? this.phone,
       taxId: taxId ?? this.taxId,
+      birthDate: birthDate ?? this.birthDate,
       companyOfficeType: companyOfficeType ?? this.companyOfficeType,
       fax: fax ?? this.fax,
       address: address ?? this.address,
@@ -1066,6 +1111,9 @@ class CustomersCompanion extends UpdateCompanion<Customer> {
     }
     if (taxId.present) {
       map['tax_id'] = Variable<String>(taxId.value);
+    }
+    if (birthDate.present) {
+      map['birth_date'] = Variable<DateTime>(birthDate.value);
     }
     if (companyOfficeType.present) {
       map['company_office_type'] = Variable<String>(companyOfficeType.value);
@@ -1129,6 +1177,7 @@ class CustomersCompanion extends UpdateCompanion<Customer> {
           ..write('nickname: $nickname, ')
           ..write('phone: $phone, ')
           ..write('taxId: $taxId, ')
+          ..write('birthDate: $birthDate, ')
           ..write('companyOfficeType: $companyOfficeType, ')
           ..write('fax: $fax, ')
           ..write('address: $address, ')
@@ -1715,6 +1764,520 @@ class UsersCompanion extends UpdateCompanion<User> {
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('isDeleted: $isDeleted, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $ShopsTable extends Shops with TableInfo<$ShopsTable, Shop> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ShopsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _descriptionMeta = const VerificationMeta(
+    'description',
+  );
+  @override
+  late final GeneratedColumn<String> description = GeneratedColumn<String>(
+    'description',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _phoneMeta = const VerificationMeta('phone');
+  @override
+  late final GeneratedColumn<String> phone = GeneratedColumn<String>(
+    'phone',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _taxIdMeta = const VerificationMeta('taxId');
+  @override
+  late final GeneratedColumn<String> taxId = GeneratedColumn<String>(
+    'tax_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _addressMeta = const VerificationMeta(
+    'address',
+  );
+  @override
+  late final GeneratedColumn<String> address = GeneratedColumn<String>(
+    'address',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    name,
+    description,
+    phone,
+    taxId,
+    address,
+    createdAt,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'shops';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<Shop> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('description')) {
+      context.handle(
+        _descriptionMeta,
+        description.isAcceptableOrUnknown(
+          data['description']!,
+          _descriptionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('phone')) {
+      context.handle(
+        _phoneMeta,
+        phone.isAcceptableOrUnknown(data['phone']!, _phoneMeta),
+      );
+    }
+    if (data.containsKey('tax_id')) {
+      context.handle(
+        _taxIdMeta,
+        taxId.isAcceptableOrUnknown(data['tax_id']!, _taxIdMeta),
+      );
+    }
+    if (data.containsKey('address')) {
+      context.handle(
+        _addressMeta,
+        address.isAcceptableOrUnknown(data['address']!, _addressMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  Shop map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return Shop(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      description: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}description'],
+      ),
+      phone: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}phone'],
+      ),
+      taxId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}tax_id'],
+      ),
+      address: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}address'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $ShopsTable createAlias(String alias) {
+    return $ShopsTable(attachedDatabase, alias);
+  }
+}
+
+class Shop extends DataClass implements Insertable<Shop> {
+  final String id;
+  final String name;
+  final String? description;
+  final String? phone;
+  final String? taxId;
+  final String? address;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  const Shop({
+    required this.id,
+    required this.name,
+    this.description,
+    this.phone,
+    this.taxId,
+    this.address,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['name'] = Variable<String>(name);
+    if (!nullToAbsent || description != null) {
+      map['description'] = Variable<String>(description);
+    }
+    if (!nullToAbsent || phone != null) {
+      map['phone'] = Variable<String>(phone);
+    }
+    if (!nullToAbsent || taxId != null) {
+      map['tax_id'] = Variable<String>(taxId);
+    }
+    if (!nullToAbsent || address != null) {
+      map['address'] = Variable<String>(address);
+    }
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  ShopsCompanion toCompanion(bool nullToAbsent) {
+    return ShopsCompanion(
+      id: Value(id),
+      name: Value(name),
+      description: description == null && nullToAbsent
+          ? const Value.absent()
+          : Value(description),
+      phone: phone == null && nullToAbsent
+          ? const Value.absent()
+          : Value(phone),
+      taxId: taxId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(taxId),
+      address: address == null && nullToAbsent
+          ? const Value.absent()
+          : Value(address),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory Shop.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return Shop(
+      id: serializer.fromJson<String>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      description: serializer.fromJson<String?>(json['description']),
+      phone: serializer.fromJson<String?>(json['phone']),
+      taxId: serializer.fromJson<String?>(json['taxId']),
+      address: serializer.fromJson<String?>(json['address']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'name': serializer.toJson<String>(name),
+      'description': serializer.toJson<String?>(description),
+      'phone': serializer.toJson<String?>(phone),
+      'taxId': serializer.toJson<String?>(taxId),
+      'address': serializer.toJson<String?>(address),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  Shop copyWith({
+    String? id,
+    String? name,
+    Value<String?> description = const Value.absent(),
+    Value<String?> phone = const Value.absent(),
+    Value<String?> taxId = const Value.absent(),
+    Value<String?> address = const Value.absent(),
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) => Shop(
+    id: id ?? this.id,
+    name: name ?? this.name,
+    description: description.present ? description.value : this.description,
+    phone: phone.present ? phone.value : this.phone,
+    taxId: taxId.present ? taxId.value : this.taxId,
+    address: address.present ? address.value : this.address,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  Shop copyWithCompanion(ShopsCompanion data) {
+    return Shop(
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      description: data.description.present
+          ? data.description.value
+          : this.description,
+      phone: data.phone.present ? data.phone.value : this.phone,
+      taxId: data.taxId.present ? data.taxId.value : this.taxId,
+      address: data.address.present ? data.address.value : this.address,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('Shop(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('description: $description, ')
+          ..write('phone: $phone, ')
+          ..write('taxId: $taxId, ')
+          ..write('address: $address, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    name,
+    description,
+    phone,
+    taxId,
+    address,
+    createdAt,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is Shop &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.description == this.description &&
+          other.phone == this.phone &&
+          other.taxId == this.taxId &&
+          other.address == this.address &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class ShopsCompanion extends UpdateCompanion<Shop> {
+  final Value<String> id;
+  final Value<String> name;
+  final Value<String?> description;
+  final Value<String?> phone;
+  final Value<String?> taxId;
+  final Value<String?> address;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<int> rowid;
+  const ShopsCompanion({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.description = const Value.absent(),
+    this.phone = const Value.absent(),
+    this.taxId = const Value.absent(),
+    this.address = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ShopsCompanion.insert({
+    required String id,
+    required String name,
+    this.description = const Value.absent(),
+    this.phone = const Value.absent(),
+    this.taxId = const Value.absent(),
+    this.address = const Value.absent(),
+    required DateTime createdAt,
+    required DateTime updatedAt,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       name = Value(name),
+       createdAt = Value(createdAt),
+       updatedAt = Value(updatedAt);
+  static Insertable<Shop> custom({
+    Expression<String>? id,
+    Expression<String>? name,
+    Expression<String>? description,
+    Expression<String>? phone,
+    Expression<String>? taxId,
+    Expression<String>? address,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (description != null) 'description': description,
+      if (phone != null) 'phone': phone,
+      if (taxId != null) 'tax_id': taxId,
+      if (address != null) 'address': address,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ShopsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? name,
+    Value<String?>? description,
+    Value<String?>? phone,
+    Value<String?>? taxId,
+    Value<String?>? address,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return ShopsCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      description: description ?? this.description,
+      phone: phone ?? this.phone,
+      taxId: taxId ?? this.taxId,
+      address: address ?? this.address,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (description.present) {
+      map['description'] = Variable<String>(description.value);
+    }
+    if (phone.present) {
+      map['phone'] = Variable<String>(phone.value);
+    }
+    if (taxId.present) {
+      map['tax_id'] = Variable<String>(taxId.value);
+    }
+    if (address.present) {
+      map['address'] = Variable<String>(address.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ShopsCompanion(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('description: $description, ')
+          ..write('phone: $phone, ')
+          ..write('taxId: $taxId, ')
+          ..write('address: $address, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -2364,6 +2927,18 @@ class $SalesTable extends Sales with TableInfo<$SalesTable, Sale> {
     type: DriftSqlType.double,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _receiverNameMeta = const VerificationMeta(
+    'receiverName',
+  );
+  @override
+  late final GeneratedColumn<String> receiverName = GeneratedColumn<String>(
+    'receiver_name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('ระบบ'),
+  );
   static const VerificationMeta _installmentCountMeta = const VerificationMeta(
     'installmentCount',
   );
@@ -2440,6 +3015,7 @@ class $SalesTable extends Sales with TableInfo<$SalesTable, Sale> {
     downPaymentPercent,
     downPaymentAmount,
     remainingAmount,
+    receiverName,
     installmentCount,
     installmentAmount,
     createdAt,
@@ -2563,6 +3139,15 @@ class $SalesTable extends Sales with TableInfo<$SalesTable, Sale> {
     } else if (isInserting) {
       context.missing(_remainingAmountMeta);
     }
+    if (data.containsKey('receiver_name')) {
+      context.handle(
+        _receiverNameMeta,
+        receiverName.isAcceptableOrUnknown(
+          data['receiver_name']!,
+          _receiverNameMeta,
+        ),
+      );
+    }
     if (data.containsKey('installment_count')) {
       context.handle(
         _installmentCountMeta,
@@ -2660,6 +3245,10 @@ class $SalesTable extends Sales with TableInfo<$SalesTable, Sale> {
         DriftSqlType.double,
         data['${effectivePrefix}remaining_amount'],
       )!,
+      receiverName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}receiver_name'],
+      )!,
       installmentCount: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}installment_count'],
@@ -2702,6 +3291,7 @@ class Sale extends DataClass implements Insertable<Sale> {
   final double downPaymentPercent;
   final double downPaymentAmount;
   final double remainingAmount;
+  final String receiverName;
   final int installmentCount;
   final double installmentAmount;
   final DateTime createdAt;
@@ -2720,6 +3310,7 @@ class Sale extends DataClass implements Insertable<Sale> {
     required this.downPaymentPercent,
     required this.downPaymentAmount,
     required this.remainingAmount,
+    required this.receiverName,
     required this.installmentCount,
     required this.installmentAmount,
     required this.createdAt,
@@ -2741,6 +3332,7 @@ class Sale extends DataClass implements Insertable<Sale> {
     map['down_payment_percent'] = Variable<double>(downPaymentPercent);
     map['down_payment_amount'] = Variable<double>(downPaymentAmount);
     map['remaining_amount'] = Variable<double>(remainingAmount);
+    map['receiver_name'] = Variable<String>(receiverName);
     map['installment_count'] = Variable<int>(installmentCount);
     map['installment_amount'] = Variable<double>(installmentAmount);
     map['created_at'] = Variable<DateTime>(createdAt);
@@ -2763,6 +3355,7 @@ class Sale extends DataClass implements Insertable<Sale> {
       downPaymentPercent: Value(downPaymentPercent),
       downPaymentAmount: Value(downPaymentAmount),
       remainingAmount: Value(remainingAmount),
+      receiverName: Value(receiverName),
       installmentCount: Value(installmentCount),
       installmentAmount: Value(installmentAmount),
       createdAt: Value(createdAt),
@@ -2791,6 +3384,7 @@ class Sale extends DataClass implements Insertable<Sale> {
       ),
       downPaymentAmount: serializer.fromJson<double>(json['downPaymentAmount']),
       remainingAmount: serializer.fromJson<double>(json['remainingAmount']),
+      receiverName: serializer.fromJson<String>(json['receiverName']),
       installmentCount: serializer.fromJson<int>(json['installmentCount']),
       installmentAmount: serializer.fromJson<double>(json['installmentAmount']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
@@ -2814,6 +3408,7 @@ class Sale extends DataClass implements Insertable<Sale> {
       'downPaymentPercent': serializer.toJson<double>(downPaymentPercent),
       'downPaymentAmount': serializer.toJson<double>(downPaymentAmount),
       'remainingAmount': serializer.toJson<double>(remainingAmount),
+      'receiverName': serializer.toJson<String>(receiverName),
       'installmentCount': serializer.toJson<int>(installmentCount),
       'installmentAmount': serializer.toJson<double>(installmentAmount),
       'createdAt': serializer.toJson<DateTime>(createdAt),
@@ -2835,6 +3430,7 @@ class Sale extends DataClass implements Insertable<Sale> {
     double? downPaymentPercent,
     double? downPaymentAmount,
     double? remainingAmount,
+    String? receiverName,
     int? installmentCount,
     double? installmentAmount,
     DateTime? createdAt,
@@ -2853,6 +3449,7 @@ class Sale extends DataClass implements Insertable<Sale> {
     downPaymentPercent: downPaymentPercent ?? this.downPaymentPercent,
     downPaymentAmount: downPaymentAmount ?? this.downPaymentAmount,
     remainingAmount: remainingAmount ?? this.remainingAmount,
+    receiverName: receiverName ?? this.receiverName,
     installmentCount: installmentCount ?? this.installmentCount,
     installmentAmount: installmentAmount ?? this.installmentAmount,
     createdAt: createdAt ?? this.createdAt,
@@ -2887,6 +3484,9 @@ class Sale extends DataClass implements Insertable<Sale> {
       remainingAmount: data.remainingAmount.present
           ? data.remainingAmount.value
           : this.remainingAmount,
+      receiverName: data.receiverName.present
+          ? data.receiverName.value
+          : this.receiverName,
       installmentCount: data.installmentCount.present
           ? data.installmentCount.value
           : this.installmentCount,
@@ -2914,6 +3514,7 @@ class Sale extends DataClass implements Insertable<Sale> {
           ..write('downPaymentPercent: $downPaymentPercent, ')
           ..write('downPaymentAmount: $downPaymentAmount, ')
           ..write('remainingAmount: $remainingAmount, ')
+          ..write('receiverName: $receiverName, ')
           ..write('installmentCount: $installmentCount, ')
           ..write('installmentAmount: $installmentAmount, ')
           ..write('createdAt: $createdAt, ')
@@ -2937,6 +3538,7 @@ class Sale extends DataClass implements Insertable<Sale> {
     downPaymentPercent,
     downPaymentAmount,
     remainingAmount,
+    receiverName,
     installmentCount,
     installmentAmount,
     createdAt,
@@ -2959,6 +3561,7 @@ class Sale extends DataClass implements Insertable<Sale> {
           other.downPaymentPercent == this.downPaymentPercent &&
           other.downPaymentAmount == this.downPaymentAmount &&
           other.remainingAmount == this.remainingAmount &&
+          other.receiverName == this.receiverName &&
           other.installmentCount == this.installmentCount &&
           other.installmentAmount == this.installmentAmount &&
           other.createdAt == this.createdAt &&
@@ -2979,6 +3582,7 @@ class SalesCompanion extends UpdateCompanion<Sale> {
   final Value<double> downPaymentPercent;
   final Value<double> downPaymentAmount;
   final Value<double> remainingAmount;
+  final Value<String> receiverName;
   final Value<int> installmentCount;
   final Value<double> installmentAmount;
   final Value<DateTime> createdAt;
@@ -2998,6 +3602,7 @@ class SalesCompanion extends UpdateCompanion<Sale> {
     this.downPaymentPercent = const Value.absent(),
     this.downPaymentAmount = const Value.absent(),
     this.remainingAmount = const Value.absent(),
+    this.receiverName = const Value.absent(),
     this.installmentCount = const Value.absent(),
     this.installmentAmount = const Value.absent(),
     this.createdAt = const Value.absent(),
@@ -3018,6 +3623,7 @@ class SalesCompanion extends UpdateCompanion<Sale> {
     required double downPaymentPercent,
     required double downPaymentAmount,
     required double remainingAmount,
+    this.receiverName = const Value.absent(),
     this.installmentCount = const Value.absent(),
     this.installmentAmount = const Value.absent(),
     required DateTime createdAt,
@@ -3051,6 +3657,7 @@ class SalesCompanion extends UpdateCompanion<Sale> {
     Expression<double>? downPaymentPercent,
     Expression<double>? downPaymentAmount,
     Expression<double>? remainingAmount,
+    Expression<String>? receiverName,
     Expression<int>? installmentCount,
     Expression<double>? installmentAmount,
     Expression<DateTime>? createdAt,
@@ -3072,6 +3679,7 @@ class SalesCompanion extends UpdateCompanion<Sale> {
         'down_payment_percent': downPaymentPercent,
       if (downPaymentAmount != null) 'down_payment_amount': downPaymentAmount,
       if (remainingAmount != null) 'remaining_amount': remainingAmount,
+      if (receiverName != null) 'receiver_name': receiverName,
       if (installmentCount != null) 'installment_count': installmentCount,
       if (installmentAmount != null) 'installment_amount': installmentAmount,
       if (createdAt != null) 'created_at': createdAt,
@@ -3094,6 +3702,7 @@ class SalesCompanion extends UpdateCompanion<Sale> {
     Value<double>? downPaymentPercent,
     Value<double>? downPaymentAmount,
     Value<double>? remainingAmount,
+    Value<String>? receiverName,
     Value<int>? installmentCount,
     Value<double>? installmentAmount,
     Value<DateTime>? createdAt,
@@ -3114,6 +3723,7 @@ class SalesCompanion extends UpdateCompanion<Sale> {
       downPaymentPercent: downPaymentPercent ?? this.downPaymentPercent,
       downPaymentAmount: downPaymentAmount ?? this.downPaymentAmount,
       remainingAmount: remainingAmount ?? this.remainingAmount,
+      receiverName: receiverName ?? this.receiverName,
       installmentCount: installmentCount ?? this.installmentCount,
       installmentAmount: installmentAmount ?? this.installmentAmount,
       createdAt: createdAt ?? this.createdAt,
@@ -3162,6 +3772,9 @@ class SalesCompanion extends UpdateCompanion<Sale> {
     if (remainingAmount.present) {
       map['remaining_amount'] = Variable<double>(remainingAmount.value);
     }
+    if (receiverName.present) {
+      map['receiver_name'] = Variable<String>(receiverName.value);
+    }
     if (installmentCount.present) {
       map['installment_count'] = Variable<int>(installmentCount.value);
     }
@@ -3198,6 +3811,7 @@ class SalesCompanion extends UpdateCompanion<Sale> {
           ..write('downPaymentPercent: $downPaymentPercent, ')
           ..write('downPaymentAmount: $downPaymentAmount, ')
           ..write('remainingAmount: $remainingAmount, ')
+          ..write('receiverName: $receiverName, ')
           ..write('installmentCount: $installmentCount, ')
           ..write('installmentAmount: $installmentAmount, ')
           ..write('createdAt: $createdAt, ')
@@ -4867,6 +5481,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
   late final $CustomersTable customers = $CustomersTable(this);
   late final $UsersTable users = $UsersTable(this);
+  late final $ShopsTable shops = $ShopsTable(this);
   late final $ProductsTable products = $ProductsTable(this);
   late final $SalesTable sales = $SalesTable(this);
   late final $SaleItemsTable saleItems = $SaleItemsTable(this);
@@ -4883,6 +5498,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   List<DatabaseSchemaEntity> get allSchemaEntities => [
     customers,
     users,
+    shops,
     products,
     sales,
     saleItems,
@@ -4898,6 +5514,7 @@ typedef $$CustomersTableCreateCompanionBuilder =
       Value<String?> nickname,
       Value<String?> phone,
       Value<String?> taxId,
+      Value<DateTime?> birthDate,
       Value<String?> companyOfficeType,
       Value<String?> fax,
       Value<String?> address,
@@ -4923,6 +5540,7 @@ typedef $$CustomersTableUpdateCompanionBuilder =
       Value<String?> nickname,
       Value<String?> phone,
       Value<String?> taxId,
+      Value<DateTime?> birthDate,
       Value<String?> companyOfficeType,
       Value<String?> fax,
       Value<String?> address,
@@ -4973,6 +5591,11 @@ class $$CustomersTableFilterComposer
 
   ColumnFilters<String> get taxId => $composableBuilder(
     column: $table.taxId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get birthDate => $composableBuilder(
+    column: $table.birthDate,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -5091,6 +5714,11 @@ class $$CustomersTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<DateTime> get birthDate => $composableBuilder(
+    column: $table.birthDate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get companyOfficeType => $composableBuilder(
     column: $table.companyOfficeType,
     builder: (column) => ColumnOrderings(column),
@@ -5196,6 +5824,9 @@ class $$CustomersTableAnnotationComposer
   GeneratedColumn<String> get taxId =>
       $composableBuilder(column: $table.taxId, builder: (column) => column);
 
+  GeneratedColumn<DateTime> get birthDate =>
+      $composableBuilder(column: $table.birthDate, builder: (column) => column);
+
   GeneratedColumn<String> get companyOfficeType => $composableBuilder(
     column: $table.companyOfficeType,
     builder: (column) => column,
@@ -5284,6 +5915,7 @@ class $$CustomersTableTableManager
                 Value<String?> nickname = const Value.absent(),
                 Value<String?> phone = const Value.absent(),
                 Value<String?> taxId = const Value.absent(),
+                Value<DateTime?> birthDate = const Value.absent(),
                 Value<String?> companyOfficeType = const Value.absent(),
                 Value<String?> fax = const Value.absent(),
                 Value<String?> address = const Value.absent(),
@@ -5307,6 +5939,7 @@ class $$CustomersTableTableManager
                 nickname: nickname,
                 phone: phone,
                 taxId: taxId,
+                birthDate: birthDate,
                 companyOfficeType: companyOfficeType,
                 fax: fax,
                 address: address,
@@ -5332,6 +5965,7 @@ class $$CustomersTableTableManager
                 Value<String?> nickname = const Value.absent(),
                 Value<String?> phone = const Value.absent(),
                 Value<String?> taxId = const Value.absent(),
+                Value<DateTime?> birthDate = const Value.absent(),
                 Value<String?> companyOfficeType = const Value.absent(),
                 Value<String?> fax = const Value.absent(),
                 Value<String?> address = const Value.absent(),
@@ -5355,6 +5989,7 @@ class $$CustomersTableTableManager
                 nickname: nickname,
                 phone: phone,
                 taxId: taxId,
+                birthDate: birthDate,
                 companyOfficeType: companyOfficeType,
                 fax: fax,
                 address: address,
@@ -5668,6 +6303,258 @@ typedef $$UsersTableProcessedTableManager =
       User,
       PrefetchHooks Function()
     >;
+typedef $$ShopsTableCreateCompanionBuilder =
+    ShopsCompanion Function({
+      required String id,
+      required String name,
+      Value<String?> description,
+      Value<String?> phone,
+      Value<String?> taxId,
+      Value<String?> address,
+      required DateTime createdAt,
+      required DateTime updatedAt,
+      Value<int> rowid,
+    });
+typedef $$ShopsTableUpdateCompanionBuilder =
+    ShopsCompanion Function({
+      Value<String> id,
+      Value<String> name,
+      Value<String?> description,
+      Value<String?> phone,
+      Value<String?> taxId,
+      Value<String?> address,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<int> rowid,
+    });
+
+class $$ShopsTableFilterComposer extends Composer<_$AppDatabase, $ShopsTable> {
+  $$ShopsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get phone => $composableBuilder(
+    column: $table.phone,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get taxId => $composableBuilder(
+    column: $table.taxId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get address => $composableBuilder(
+    column: $table.address,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$ShopsTableOrderingComposer
+    extends Composer<_$AppDatabase, $ShopsTable> {
+  $$ShopsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get phone => $composableBuilder(
+    column: $table.phone,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get taxId => $composableBuilder(
+    column: $table.taxId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get address => $composableBuilder(
+    column: $table.address,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ShopsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ShopsTable> {
+  $$ShopsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get phone =>
+      $composableBuilder(column: $table.phone, builder: (column) => column);
+
+  GeneratedColumn<String> get taxId =>
+      $composableBuilder(column: $table.taxId, builder: (column) => column);
+
+  GeneratedColumn<String> get address =>
+      $composableBuilder(column: $table.address, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$ShopsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ShopsTable,
+          Shop,
+          $$ShopsTableFilterComposer,
+          $$ShopsTableOrderingComposer,
+          $$ShopsTableAnnotationComposer,
+          $$ShopsTableCreateCompanionBuilder,
+          $$ShopsTableUpdateCompanionBuilder,
+          (Shop, BaseReferences<_$AppDatabase, $ShopsTable, Shop>),
+          Shop,
+          PrefetchHooks Function()
+        > {
+  $$ShopsTableTableManager(_$AppDatabase db, $ShopsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ShopsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ShopsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ShopsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<String?> description = const Value.absent(),
+                Value<String?> phone = const Value.absent(),
+                Value<String?> taxId = const Value.absent(),
+                Value<String?> address = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ShopsCompanion(
+                id: id,
+                name: name,
+                description: description,
+                phone: phone,
+                taxId: taxId,
+                address: address,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String name,
+                Value<String?> description = const Value.absent(),
+                Value<String?> phone = const Value.absent(),
+                Value<String?> taxId = const Value.absent(),
+                Value<String?> address = const Value.absent(),
+                required DateTime createdAt,
+                required DateTime updatedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => ShopsCompanion.insert(
+                id: id,
+                name: name,
+                description: description,
+                phone: phone,
+                taxId: taxId,
+                address: address,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$ShopsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ShopsTable,
+      Shop,
+      $$ShopsTableFilterComposer,
+      $$ShopsTableOrderingComposer,
+      $$ShopsTableAnnotationComposer,
+      $$ShopsTableCreateCompanionBuilder,
+      $$ShopsTableUpdateCompanionBuilder,
+      (Shop, BaseReferences<_$AppDatabase, $ShopsTable, Shop>),
+      Shop,
+      PrefetchHooks Function()
+    >;
 typedef $$ProductsTableCreateCompanionBuilder =
     ProductsCompanion Function({
       required String id,
@@ -5933,6 +6820,7 @@ typedef $$SalesTableCreateCompanionBuilder =
       required double downPaymentPercent,
       required double downPaymentAmount,
       required double remainingAmount,
+      Value<String> receiverName,
       Value<int> installmentCount,
       Value<double> installmentAmount,
       required DateTime createdAt,
@@ -5954,6 +6842,7 @@ typedef $$SalesTableUpdateCompanionBuilder =
       Value<double> downPaymentPercent,
       Value<double> downPaymentAmount,
       Value<double> remainingAmount,
+      Value<String> receiverName,
       Value<int> installmentCount,
       Value<double> installmentAmount,
       Value<DateTime> createdAt,
@@ -6027,6 +6916,11 @@ class $$SalesTableFilterComposer extends Composer<_$AppDatabase, $SalesTable> {
 
   ColumnFilters<double> get remainingAmount => $composableBuilder(
     column: $table.remainingAmount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get receiverName => $composableBuilder(
+    column: $table.receiverName,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -6125,6 +7019,11 @@ class $$SalesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get receiverName => $composableBuilder(
+    column: $table.receiverName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get installmentCount => $composableBuilder(
     column: $table.installmentCount,
     builder: (column) => ColumnOrderings(column),
@@ -6210,6 +7109,11 @@ class $$SalesTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get receiverName => $composableBuilder(
+    column: $table.receiverName,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<int> get installmentCount => $composableBuilder(
     column: $table.installmentCount,
     builder: (column) => column,
@@ -6270,6 +7174,7 @@ class $$SalesTableTableManager
                 Value<double> downPaymentPercent = const Value.absent(),
                 Value<double> downPaymentAmount = const Value.absent(),
                 Value<double> remainingAmount = const Value.absent(),
+                Value<String> receiverName = const Value.absent(),
                 Value<int> installmentCount = const Value.absent(),
                 Value<double> installmentAmount = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
@@ -6289,6 +7194,7 @@ class $$SalesTableTableManager
                 downPaymentPercent: downPaymentPercent,
                 downPaymentAmount: downPaymentAmount,
                 remainingAmount: remainingAmount,
+                receiverName: receiverName,
                 installmentCount: installmentCount,
                 installmentAmount: installmentAmount,
                 createdAt: createdAt,
@@ -6310,6 +7216,7 @@ class $$SalesTableTableManager
                 required double downPaymentPercent,
                 required double downPaymentAmount,
                 required double remainingAmount,
+                Value<String> receiverName = const Value.absent(),
                 Value<int> installmentCount = const Value.absent(),
                 Value<double> installmentAmount = const Value.absent(),
                 required DateTime createdAt,
@@ -6329,6 +7236,7 @@ class $$SalesTableTableManager
                 downPaymentPercent: downPaymentPercent,
                 downPaymentAmount: downPaymentAmount,
                 remainingAmount: remainingAmount,
+                receiverName: receiverName,
                 installmentCount: installmentCount,
                 installmentAmount: installmentAmount,
                 createdAt: createdAt,
@@ -7197,6 +8105,8 @@ class $AppDatabaseManager {
       $$CustomersTableTableManager(_db, _db.customers);
   $$UsersTableTableManager get users =>
       $$UsersTableTableManager(_db, _db.users);
+  $$ShopsTableTableManager get shops =>
+      $$ShopsTableTableManager(_db, _db.shops);
   $$ProductsTableTableManager get products =>
       $$ProductsTableTableManager(_db, _db.products);
   $$SalesTableTableManager get sales =>

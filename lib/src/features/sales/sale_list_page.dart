@@ -5,10 +5,14 @@ class SaleListPage extends StatefulWidget {
     super.key,
     required this.database,
     required this.saleService,
+    required this.receiverName,
+    this.initialSaleId,
   });
 
   final AppDatabase database;
   final SaleService saleService;
+  final String receiverName;
+  final String? initialSaleId;
 
   @override
   State<SaleListPage> createState() => _SaleListPageState();
@@ -29,6 +33,20 @@ class _SaleListPageState extends State<SaleListPage> {
         setState(() {});
       }
     });
+    final initialSaleId = widget.initialSaleId;
+    if (initialSaleId != null) {
+      _selectedSaleId = initialSaleId;
+      _detailFuture = _loadDetail(initialSaleId);
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant SaleListPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final initialSaleId = widget.initialSaleId;
+    if (initialSaleId != null && initialSaleId != oldWidget.initialSaleId) {
+      _openDetailById(initialSaleId);
+    }
   }
 
   @override
@@ -38,9 +56,13 @@ class _SaleListPageState extends State<SaleListPage> {
   }
 
   void _openDetail(Sale sale) {
+    _openDetailById(sale.id);
+  }
+
+  void _openDetailById(String saleId) {
     setState(() {
-      _selectedSaleId = sale.id;
-      _detailFuture = _loadDetail(sale.id);
+      _selectedSaleId = saleId;
+      _detailFuture = _loadDetail(saleId);
     });
   }
 
@@ -87,6 +109,7 @@ class _SaleListPageState extends State<SaleListPage> {
         saleId: installment.saleId,
         installmentId: installment.id,
         amount: amount,
+        receiverName: widget.receiverName,
       );
       if (!mounted) {
         return;

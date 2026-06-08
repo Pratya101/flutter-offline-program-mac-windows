@@ -5,10 +5,14 @@ class SalePage extends StatefulWidget {
     super.key,
     required this.database,
     required this.saleService,
+    required this.receiverName,
+    required this.onSaleCreated,
   });
 
   final AppDatabase database;
   final SaleService saleService;
+  final String receiverName;
+  final ValueChanged<Sale> onSaleCreated;
 
   @override
   State<SalePage> createState() => _SalePageState();
@@ -20,13 +24,77 @@ class _SalePageState extends State<SalePage> {
   final _productQuantityFocusNode = FocusNode();
   final _downPaymentFocusNode = FocusNode();
 
-  String? _selectedCustomerId;
-  String? _selectedProductId;
-  final List<_SaleCartItem> _cartItems = [];
-  SaleVatOption _vatOption = SaleVatOption.none;
-  var _installmentCount = 1;
-  var _downPaymentInputMode = _DownPaymentInputMode.amount;
-  var _saving = false;
+  final _selectedCustomerIdNotifier = ValueNotifier<String?>(null);
+  final _selectedProductIdNotifier = ValueNotifier<String?>(null);
+  Customer? _pendingSelectedCustomer;
+  Product? _pendingSelectedProduct;
+  final _cartItemsNotifier = ValueNotifier<List<_SaleCartItem>>(
+    const <_SaleCartItem>[],
+  );
+  final _vatOptionNotifier = ValueNotifier<SaleVatOption>(SaleVatOption.none);
+  final _installmentCountNotifier = ValueNotifier<int>(1);
+  final _firstDueDateNotifier = ValueNotifier<DateTime>(_defaultFirstDueDate());
+  final _downPaymentInputModeNotifier = ValueNotifier<_DownPaymentInputMode>(
+    _DownPaymentInputMode.amount,
+  );
+  final _savingNotifier = ValueNotifier<bool>(false);
+
+  String? get _selectedCustomerId => _selectedCustomerIdNotifier.value;
+  set _selectedCustomerId(String? value) {
+    if (_selectedCustomerIdNotifier.value != value) {
+      _selectedCustomerIdNotifier.value = value;
+    }
+  }
+
+  String? get _selectedProductId => _selectedProductIdNotifier.value;
+  set _selectedProductId(String? value) {
+    if (_selectedProductIdNotifier.value != value) {
+      _selectedProductIdNotifier.value = value;
+    }
+  }
+
+  List<_SaleCartItem> get _cartItems => _cartItemsNotifier.value;
+  set _cartItems(List<_SaleCartItem> value) {
+    _cartItemsNotifier.value = List<_SaleCartItem>.unmodifiable(value);
+  }
+
+  SaleVatOption get _vatOption => _vatOptionNotifier.value;
+  set _vatOption(SaleVatOption value) {
+    if (_vatOptionNotifier.value != value) {
+      _vatOptionNotifier.value = value;
+    }
+  }
+
+  int get _installmentCount => _installmentCountNotifier.value;
+  set _installmentCount(int value) {
+    if (_installmentCountNotifier.value != value) {
+      _installmentCountNotifier.value = value;
+    }
+  }
+
+  DateTime get _firstDueDate => _firstDueDateNotifier.value;
+  set _firstDueDate(DateTime value) {
+    final nextDate = _dateOnlyForSale(value);
+    if (_firstDueDateNotifier.value != nextDate) {
+      _firstDueDateNotifier.value = nextDate;
+    }
+  }
+
+  _DownPaymentInputMode get _downPaymentInputMode {
+    return _downPaymentInputModeNotifier.value;
+  }
+
+  set _downPaymentInputMode(_DownPaymentInputMode value) {
+    if (_downPaymentInputModeNotifier.value != value) {
+      _downPaymentInputModeNotifier.value = value;
+    }
+  }
+
+  set _saving(bool value) {
+    if (_savingNotifier.value != value) {
+      _savingNotifier.value = value;
+    }
+  }
 
   @override
   void dispose() {
@@ -34,6 +102,14 @@ class _SalePageState extends State<SalePage> {
     _downPaymentAmountController.dispose();
     _productQuantityFocusNode.dispose();
     _downPaymentFocusNode.dispose();
+    _selectedCustomerIdNotifier.dispose();
+    _selectedProductIdNotifier.dispose();
+    _cartItemsNotifier.dispose();
+    _vatOptionNotifier.dispose();
+    _installmentCountNotifier.dispose();
+    _firstDueDateNotifier.dispose();
+    _downPaymentInputModeNotifier.dispose();
+    _savingNotifier.dispose();
     super.dispose();
   }
 
@@ -61,6 +137,26 @@ class _SalePageState extends State<SalePage> {
       }
     }
     return null;
+  }
+
+  List<Customer> _customersWithPending(List<Customer> customers) {
+    final pendingCustomer = _pendingSelectedCustomer;
+    if (pendingCustomer == null ||
+        _selectedCustomerId != pendingCustomer.id ||
+        customers.any((customer) => customer.id == pendingCustomer.id)) {
+      return customers;
+    }
+    return [pendingCustomer, ...customers];
+  }
+
+  List<Product> _productsWithPending(List<Product> products) {
+    final pendingProduct = _pendingSelectedProduct;
+    if (pendingProduct == null ||
+        _selectedProductId != pendingProduct.id ||
+        products.any((product) => product.id == pendingProduct.id)) {
+      return products;
+    }
+    return [pendingProduct, ...products];
   }
 
   double? get _quantity => _parseSalePrice(_quantityController.text);
@@ -161,18 +257,18 @@ class _SalePageState extends State<SalePage> {
     final existingIndex = _cartItems.indexWhere(
       (item) => item.product.id == product.id,
     );
-    setState(() {
-      if (existingIndex >= 0) {
-        final existing = _cartItems[existingIndex];
-        _cartItems[existingIndex] = existing.copyWith(
-          quantity: existing.quantity + quantity,
-        );
-      } else {
-        _cartItems.add(_SaleCartItem(product: product, quantity: quantity));
-      }
-      _selectedProductId = null;
-      _quantityController.text = '1';
-    });
+    final nextCartItems = [..._cartItems];
+    if (existingIndex >= 0) {
+      final existing = nextCartItems[existingIndex];
+      nextCartItems[existingIndex] = existing.copyWith(
+        quantity: existing.quantity + quantity,
+      );
+    } else {
+      nextCartItems.add(_SaleCartItem(product: product, quantity: quantity));
+    }
+    _cartItems = nextCartItems;
+    _selectedProductId = null;
+    _quantityController.text = '1';
     _showMessage('เพิ่มรายการสินค้าแล้ว');
   }
 
@@ -181,20 +277,21 @@ class _SalePageState extends State<SalePage> {
       _showMessage('จำนวนสินค้าต้องมากกว่า 0');
       return;
     }
-    setState(() {
-      final index = _cartItems.indexWhere(
-        (item) => item.product.id == product.id,
-      );
-      if (index >= 0) {
-        _cartItems[index] = _cartItems[index].copyWith(quantity: quantity);
-      }
-    });
+    final nextCartItems = [..._cartItems];
+    final index = nextCartItems.indexWhere(
+      (item) => item.product.id == product.id,
+    );
+    if (index >= 0) {
+      nextCartItems[index] = nextCartItems[index].copyWith(quantity: quantity);
+      _cartItems = nextCartItems;
+    }
   }
 
   void _removeCartItem(Product product) {
-    setState(() {
-      _cartItems.removeWhere((item) => item.product.id == product.id);
-    });
+    _cartItems = [
+      for (final item in _cartItems)
+        if (item.product.id != product.id) item,
+    ];
     _showMessage('ลบรายการสินค้าแล้ว');
   }
 
@@ -221,18 +318,71 @@ class _SalePageState extends State<SalePage> {
       }
     }
 
+    _downPaymentInputMode = mode;
+    _downPaymentAmountController.text = nextText;
+    _downPaymentAmountController.selection = TextSelection.collapsed(
+      offset: nextText.length,
+    );
+  }
+
+  Future<void> _openCustomerForm() async {
+    final customer = await showDialog<Customer>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => _CustomerFormDialog(
+        customerService: CustomerService(widget.database),
+        editingCustomer: null,
+      ),
+    );
+    if (!mounted || customer == null) {
+      return;
+    }
+
     setState(() {
-      _downPaymentInputMode = mode;
-      _downPaymentAmountController.text = nextText;
-      _downPaymentAmountController.selection = TextSelection.collapsed(
-        offset: nextText.length,
-      );
+      _selectedCustomerId = customer.id;
+      _pendingSelectedCustomer = customer;
     });
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        _downPaymentFocusNode.requestFocus();
-      }
+    _showMessage('สร้างลูกค้าแล้ว');
+  }
+
+  Future<void> _openProductForm() async {
+    final product = await showDialog<Product>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => _ProductFormDialog(
+        productService: ProductService(widget.database),
+        editingProduct: null,
+      ),
+    );
+    if (!mounted || product == null) {
+      return;
+    }
+
+    setState(() {
+      _selectedProductId = product.id;
+      _pendingSelectedProduct = product;
     });
+    _showMessage('สร้างสินค้าแล้ว');
+  }
+
+  Future<void> _pickFirstDueDate() async {
+    final now = _dateOnlyForSale(DateTime.now());
+    final selectedDate = _firstDueDate;
+    final initialDate = selectedDate.isBefore(now) ? now : selectedDate;
+    final picked = await showDatePicker(
+      context: context,
+      locale: const Locale('th', 'TH'),
+      helpText: 'เลือกวันที่ต้องชำระรอบแรก',
+      cancelText: 'ยกเลิก',
+      confirmText: 'ตกลง',
+      initialDate: initialDate,
+      firstDate: now,
+      lastDate: DateTime(now.year + 10, now.month, now.day),
+    );
+    if (picked == null || !mounted) {
+      return;
+    }
+    _firstDueDate = picked;
   }
 
   Future<void> _saveSale({required Customer? customer}) async {
@@ -268,25 +418,48 @@ class _SalePageState extends State<SalePage> {
       return;
     }
 
-    setState(() => _saving = true);
+    final confirmation = _SaleConfirmationSnapshot(
+      customer: customer,
+      cartItems: List<_SaleCartItem>.unmodifiable(_cartItems),
+      vatOption: _vatOption,
+      downPaymentAmount: downPaymentAmount,
+      installmentCount: _installmentCount,
+      firstDueDate: _firstDueDate,
+      totals: _totals,
+    );
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return _SaleConfirmationDialog(snapshot: confirmation);
+      },
+    );
+    if (confirmed != true || !mounted) {
+      return;
+    }
+
+    _saving = true;
     try {
-      await widget.saleService.createSale(
+      final sale = await widget.saleService.createSale(
         SalePayload(
-          customer: customer,
-          items: _cartItems.map((item) => item.toPayload()).toList(),
-          vatOption: _vatOption,
-          downPaymentAmount: downPaymentAmount,
-          installmentCount: _installmentCount,
+          customer: confirmation.customer,
+          items: confirmation.cartItems
+              .map((item) => item.toPayload())
+              .toList(),
+          vatOption: confirmation.vatOption,
+          downPaymentAmount: confirmation.downPaymentAmount,
+          installmentCount: confirmation.installmentCount,
+          firstDueDate: confirmation.firstDueDate,
+          receiverName: widget.receiverName,
         ),
       );
 
       if (mounted) {
-        setState(() {
-          _selectedProductId = null;
-          _quantityController.text = '1';
-          _cartItems.clear();
-        });
+        _selectedProductId = null;
+        _quantityController.text = '1';
+        _cartItems = const <_SaleCartItem>[];
         _showMessage('บันทึกการขายแล้ว');
+        widget.onSaleCreated(sale);
       }
     } on SaleException catch (error) {
       _showMessage(error.message);
@@ -294,7 +467,7 @@ class _SalePageState extends State<SalePage> {
       _showMessage('ไม่สามารถบันทึกการขายได้');
     } finally {
       if (mounted) {
-        setState(() => _saving = false);
+        _saving = false;
       }
     }
   }
@@ -308,111 +481,122 @@ class _SalePageState extends State<SalePage> {
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: StreamBuilder<List<Customer>>(
-          stream: widget.database.watchActiveCustomers(),
-          builder: (context, customerSnapshot) {
-            final customers = customerSnapshot.data ?? const <Customer>[];
-            final selectedCustomer = _selectedCustomer(customers);
-            if (_selectedCustomerId != null && selectedCustomer == null) {
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (mounted) {
-                  setState(() => _selectedCustomerId = null);
-                }
-              });
-            }
-
-            return StreamBuilder<List<Product>>(
-              stream: widget.database.watchActiveProducts(),
-              builder: (context, productSnapshot) {
-                final products = productSnapshot.data ?? const <Product>[];
-                final selectedProduct = _selectedProduct(products);
-                if (_selectedProductId != null && selectedProduct == null) {
+    final mediaQuery = MediaQuery.of(context);
+    return MediaQuery(
+      data: mediaQuery.copyWith(disableAnimations: true),
+      child: Theme(
+        data: _saleNoFlickerTheme(context),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: StreamBuilder<List<Customer>>(
+              stream: widget.database.watchActiveCustomers(),
+              builder: (context, customerSnapshot) {
+                final customers = _customersWithPending(
+                  customerSnapshot.data ?? const <Customer>[],
+                );
+                final selectedCustomer = _selectedCustomer(customers);
+                if (_selectedCustomerId != null && selectedCustomer == null) {
                   WidgetsBinding.instance.addPostFrameCallback((_) {
                     if (mounted) {
-                      setState(() => _selectedProductId = null);
+                      _selectedCustomerId = null;
                     }
                   });
                 }
 
-                final totals = _totals;
-                final loading =
-                    customerSnapshot.connectionState ==
-                        ConnectionState.waiting ||
-                    productSnapshot.connectionState == ConnectionState.waiting;
+                return StreamBuilder<List<Product>>(
+                  stream: widget.database.watchActiveProducts(),
+                  builder: (context, productSnapshot) {
+                    final products = _productsWithPending(
+                      productSnapshot.data ?? const <Product>[],
+                    );
+                    final selectedProduct = _selectedProduct(products);
+                    if (_selectedProductId != null && selectedProduct == null) {
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (mounted) {
+                          _selectedProductId = null;
+                        }
+                      });
+                    }
 
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text('ขาย', style: Theme.of(context).textTheme.titleLarge),
-                    const SizedBox(height: 14),
-                    Expanded(
-                      child: loading
-                          ? const Center(child: CircularProgressIndicator())
-                          : _SaleWorkspace(
-                              customers: customers,
-                              products: products,
-                              selectedCustomerId: _selectedCustomerId,
-                              selectedProductId: _selectedProductId,
-                              cartItems: _cartItems,
-                              quantityController: _quantityController,
-                              productQuantityFocusNode:
-                                  _productQuantityFocusNode,
-                              downPaymentAmountController:
-                                  _downPaymentAmountController,
-                              downPaymentFocusNode: _downPaymentFocusNode,
-                              downPaymentAmountListenable:
-                                  _downPaymentAmountController,
-                              calculateTotals: () => _totals,
-                              downPaymentInputMode: _downPaymentInputMode,
-                              vatOption: _vatOption,
-                              installmentCount: _installmentCount,
-                              totals: totals,
-                              saving: _saving,
-                              onCustomerChanged: (value) {
-                                setState(() => _selectedCustomerId = value);
-                              },
-                              onProductChanged: (value) {
-                                setState(() => _selectedProductId = value);
-                                if (value != null) {
-                                  WidgetsBinding.instance.addPostFrameCallback((
-                                    _,
-                                  ) {
-                                    if (mounted) {
-                                      _productQuantityFocusNode.requestFocus();
+                    final loading =
+                        customerSnapshot.connectionState ==
+                            ConnectionState.waiting ||
+                        productSnapshot.connectionState ==
+                            ConnectionState.waiting;
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          'ขาย',
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                        const SizedBox(height: 14),
+                        Expanded(
+                          child: loading
+                              ? const Center(child: CircularProgressIndicator())
+                              : _SaleWorkspace(
+                                  customers: customers,
+                                  products: products,
+                                  selectedCustomerIdListenable:
+                                      _selectedCustomerIdNotifier,
+                                  selectedProductIdListenable:
+                                      _selectedProductIdNotifier,
+                                  cartItemsListenable: _cartItemsNotifier,
+                                  quantityController: _quantityController,
+                                  productQuantityFocusNode:
+                                      _productQuantityFocusNode,
+                                  downPaymentAmountController:
+                                      _downPaymentAmountController,
+                                  downPaymentFocusNode: _downPaymentFocusNode,
+                                  downPaymentAmountListenable:
+                                      _downPaymentAmountController,
+                                  calculateTotals: () => _totals,
+                                  downPaymentInputModeListenable:
+                                      _downPaymentInputModeNotifier,
+                                  vatOptionListenable: _vatOptionNotifier,
+                                  installmentCountListenable:
+                                      _installmentCountNotifier,
+                                  firstDueDateListenable: _firstDueDateNotifier,
+                                  savingListenable: _savingNotifier,
+                                  onCustomerChanged: (value) {
+                                    _selectedCustomerId = value;
+                                    if (value != _pendingSelectedCustomer?.id) {
+                                      _pendingSelectedCustomer = null;
                                     }
-                                  });
-                                }
-                              },
-                              onAddToCart: () => _addToCart(selectedProduct),
-                              onCartQuantityChanged: _updateCartQuantity,
-                              onRemoveCartItem: _removeCartItem,
-                              onVatOptionChanged: (value) {
-                                setState(() => _vatOption = value);
-                              },
-                              onInstallmentChanged: (value) {
-                                setState(() => _installmentCount = value);
-                                WidgetsBinding.instance.addPostFrameCallback((
-                                  _,
-                                ) {
-                                  if (mounted) {
-                                    _downPaymentFocusNode.requestFocus();
-                                  }
-                                });
-                              },
-                              onDownPaymentInputModeChanged:
-                                  _changeDownPaymentInputMode,
-                              onSave: () =>
-                                  _saveSale(customer: selectedCustomer),
-                            ),
-                    ),
-                  ],
+                                  },
+                                  onProductChanged: (value) {
+                                    _selectedProductId = value;
+                                    if (value != _pendingSelectedProduct?.id) {
+                                      _pendingSelectedProduct = null;
+                                    }
+                                  },
+                                  onAddToCart: () =>
+                                      _addToCart(_selectedProduct(products)),
+                                  onCartQuantityChanged: _updateCartQuantity,
+                                  onRemoveCartItem: _removeCartItem,
+                                  onVatOptionChanged: (value) =>
+                                      _vatOption = value,
+                                  onInstallmentChanged: (value) =>
+                                      _installmentCount = value,
+                                  onFirstDueDatePick: _pickFirstDueDate,
+                                  onDownPaymentInputModeChanged:
+                                      _changeDownPaymentInputMode,
+                                  onCreateCustomer: _openCustomerForm,
+                                  onCreateProduct: _openProductForm,
+                                  onSave: () => _saveSale(
+                                    customer: _selectedCustomer(customers),
+                                  ),
+                                ),
+                        ),
+                      ],
+                    );
+                  },
                 );
               },
-            );
-          },
+            ),
+          ),
         ),
       ),
     );
@@ -423,20 +607,20 @@ class _SaleWorkspace extends StatelessWidget {
   const _SaleWorkspace({
     required this.customers,
     required this.products,
-    required this.selectedCustomerId,
-    required this.selectedProductId,
-    required this.cartItems,
+    required this.selectedCustomerIdListenable,
+    required this.selectedProductIdListenable,
+    required this.cartItemsListenable,
     required this.quantityController,
     required this.productQuantityFocusNode,
     required this.downPaymentAmountController,
     required this.downPaymentFocusNode,
     required this.downPaymentAmountListenable,
     required this.calculateTotals,
-    required this.downPaymentInputMode,
-    required this.vatOption,
-    required this.installmentCount,
-    required this.totals,
-    required this.saving,
+    required this.downPaymentInputModeListenable,
+    required this.vatOptionListenable,
+    required this.installmentCountListenable,
+    required this.firstDueDateListenable,
+    required this.savingListenable,
     required this.onCustomerChanged,
     required this.onProductChanged,
     required this.onAddToCart,
@@ -444,26 +628,29 @@ class _SaleWorkspace extends StatelessWidget {
     required this.onRemoveCartItem,
     required this.onVatOptionChanged,
     required this.onInstallmentChanged,
+    required this.onFirstDueDatePick,
     required this.onDownPaymentInputModeChanged,
+    required this.onCreateCustomer,
+    required this.onCreateProduct,
     required this.onSave,
   });
 
   final List<Customer> customers;
   final List<Product> products;
-  final String? selectedCustomerId;
-  final String? selectedProductId;
-  final List<_SaleCartItem> cartItems;
+  final ValueListenable<String?> selectedCustomerIdListenable;
+  final ValueListenable<String?> selectedProductIdListenable;
+  final ValueListenable<List<_SaleCartItem>> cartItemsListenable;
   final TextEditingController quantityController;
   final FocusNode productQuantityFocusNode;
   final TextEditingController downPaymentAmountController;
   final FocusNode downPaymentFocusNode;
   final ValueListenable<TextEditingValue> downPaymentAmountListenable;
   final SaleTotals Function() calculateTotals;
-  final _DownPaymentInputMode downPaymentInputMode;
-  final SaleVatOption vatOption;
-  final int installmentCount;
-  final SaleTotals totals;
-  final bool saving;
+  final ValueListenable<_DownPaymentInputMode> downPaymentInputModeListenable;
+  final ValueListenable<SaleVatOption> vatOptionListenable;
+  final ValueListenable<int> installmentCountListenable;
+  final ValueListenable<DateTime> firstDueDateListenable;
+  final ValueListenable<bool> savingListenable;
   final ValueChanged<String?> onCustomerChanged;
   final ValueChanged<String?> onProductChanged;
   final VoidCallback onAddToCart;
@@ -471,7 +658,10 @@ class _SaleWorkspace extends StatelessWidget {
   final ValueChanged<Product> onRemoveCartItem;
   final ValueChanged<SaleVatOption> onVatOptionChanged;
   final ValueChanged<int> onInstallmentChanged;
+  final VoidCallback onFirstDueDatePick;
   final ValueChanged<_DownPaymentInputMode> onDownPaymentInputModeChanged;
+  final VoidCallback onCreateCustomer;
+  final VoidCallback onCreateProduct;
   final VoidCallback onSave;
 
   @override
@@ -480,32 +670,36 @@ class _SaleWorkspace extends StatelessWidget {
       builder: (context, constraints) {
         final form = _SaleFormPanel(
           customers: customers,
-          selectedCustomerId: selectedCustomerId,
+          selectedCustomerIdListenable: selectedCustomerIdListenable,
           downPaymentAmountController: downPaymentAmountController,
           downPaymentFocusNode: downPaymentFocusNode,
           downPaymentAmountListenable: downPaymentAmountListenable,
           calculateTotals: calculateTotals,
-          downPaymentInputMode: downPaymentInputMode,
-          installmentCount: installmentCount,
-          totals: totals,
-          saving: saving,
+          downPaymentInputModeListenable: downPaymentInputModeListenable,
+          installmentCountListenable: installmentCountListenable,
+          firstDueDateListenable: firstDueDateListenable,
+          savingListenable: savingListenable,
           onCustomerChanged: onCustomerChanged,
           onInstallmentChanged: onInstallmentChanged,
+          onFirstDueDatePick: onFirstDueDatePick,
           onDownPaymentInputModeChanged: onDownPaymentInputModeChanged,
+          onCreateCustomer: onCreateCustomer,
           onSave: onSave,
         );
         final cart = _SaleCartPanel(
           products: products,
-          selectedProductId: selectedProductId,
+          selectedProductIdListenable: selectedProductIdListenable,
           quantityController: quantityController,
           productQuantityFocusNode: productQuantityFocusNode,
-          cartItems: cartItems,
-          vatOption: vatOption,
-          installmentCount: installmentCount,
+          cartItemsListenable: cartItemsListenable,
+          vatOptionListenable: vatOptionListenable,
+          installmentCountListenable: installmentCountListenable,
+          firstDueDateListenable: firstDueDateListenable,
           downPaymentAmountListenable: downPaymentAmountListenable,
           calculateTotals: calculateTotals,
           onProductChanged: onProductChanged,
           onAddToCart: onAddToCart,
+          onCreateProduct: onCreateProduct,
           onQuantityChanged: onCartQuantityChanged,
           onRemove: onRemoveCartItem,
           onVatOptionChanged: onVatOptionChanged,
@@ -550,7 +744,405 @@ class _SaleCartItem {
   }
 }
 
+class _SaleConfirmationSnapshot {
+  const _SaleConfirmationSnapshot({
+    required this.customer,
+    required this.cartItems,
+    required this.vatOption,
+    required this.downPaymentAmount,
+    required this.installmentCount,
+    required this.firstDueDate,
+    required this.totals,
+  });
+
+  final Customer customer;
+  final List<_SaleCartItem> cartItems;
+  final SaleVatOption vatOption;
+  final double downPaymentAmount;
+  final int installmentCount;
+  final DateTime firstDueDate;
+  final SaleTotals totals;
+}
+
+class _SaleConfirmationDialog extends StatelessWidget {
+  const _SaleConfirmationDialog({required this.snapshot});
+
+  final _SaleConfirmationSnapshot snapshot;
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 32, vertical: 28),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 760, maxHeight: 760),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  const Icon(
+                    SolarIconsOutline.billCheck,
+                    color: _primaryColor,
+                    size: 28,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'ตรวจสอบก่อนบันทึกการขาย',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Expanded(
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _SaleConfirmationSection(
+                        title: 'ข้อมูลลูกค้า',
+                        icon: SolarIconsOutline.userId,
+                        child: Column(
+                          children: [
+                            _SaleConfirmationRow(
+                              label: 'ชื่อ - สกุล',
+                              value: snapshot.customer.name,
+                            ),
+                            _SaleConfirmationRow(
+                              label: 'ชื่อเล่น',
+                              value: _displayText(snapshot.customer.nickname),
+                            ),
+                            _SaleConfirmationRow(
+                              label: 'โทรศัพท์',
+                              value: _displayText(snapshot.customer.phone),
+                            ),
+                            _SaleConfirmationRow(
+                              label: 'เลขบัตรประชาชน',
+                              value: _displayText(snapshot.customer.taxId),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      _SaleConfirmationSection(
+                        title: 'รายการสินค้า',
+                        icon: SolarIconsOutline.box,
+                        child: _SaleConfirmationItemsTable(
+                          items: snapshot.cartItems,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      _SaleConfirmationSection(
+                        title: 'การชำระเงิน',
+                        icon: SolarIconsOutline.walletMoney,
+                        child: Column(
+                          children: [
+                            _SaleConfirmationRow(
+                              label: 'ภาษี',
+                              value: snapshot.vatOption.label,
+                            ),
+                            _SaleConfirmationRow(
+                              label: 'เงินดาวน์',
+                              value:
+                                  '${_formatSalePrice(snapshot.downPaymentAmount)} บาท',
+                            ),
+                            _SaleConfirmationRow(
+                              label: 'จำนวนงวด',
+                              value: '${snapshot.installmentCount} งวด',
+                            ),
+                            _SaleConfirmationRow(
+                              label: 'ชำระรอบแรก',
+                              value: _formatDate(snapshot.firstDueDate),
+                            ),
+                            _SaleConfirmationRow(
+                              label: 'รอบบิล',
+                              value: 'ทุกวันที่ ${snapshot.firstDueDate.day}',
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      _SaleConfirmationSection(
+                        title: 'สรุปราคา',
+                        icon: SolarIconsOutline.calculatorMinimalistic,
+                        child: Column(
+                          children: [
+                            _SaleConfirmationRow(
+                              label: 'ยอดก่อน VAT',
+                              value:
+                                  '${_formatSalePrice(snapshot.totals.subtotal)} บาท',
+                            ),
+                            _SaleConfirmationRow(
+                              label: 'VAT',
+                              value:
+                                  '${_formatSalePrice(snapshot.totals.vatAmount)} บาท',
+                            ),
+                            _SaleConfirmationRow(
+                              label: 'ยอดรวม',
+                              value:
+                                  '${_formatSalePrice(snapshot.totals.grandTotal)} บาท',
+                              emphasized: true,
+                            ),
+                            _SaleConfirmationRow(
+                              label: 'ยอดคงเหลือ',
+                              value:
+                                  '${_formatSalePrice(snapshot.totals.remainingAmount)} บาท',
+                            ),
+                            _SaleConfirmationRow(
+                              label: 'ค่างวด',
+                              value:
+                                  '${_formatSalePrice(snapshot.totals.installmentAmount)} บาท/งวด',
+                              emphasized: true,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 18),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(false),
+                    child: const Text('ยกเลิก'),
+                  ),
+                  const SizedBox(width: 10),
+                  FilledButton.icon(
+                    onPressed: () => Navigator.of(context).pop(true),
+                    icon: const Icon(SolarIconsOutline.checkCircle),
+                    label: const Text('Submit'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SaleConfirmationSection extends StatelessWidget {
+  const _SaleConfirmationSection({
+    required this.title,
+    required this.icon,
+    required this.child,
+  });
+
+  final String title;
+  final IconData icon;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FBFA),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFD8E7E4)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Icon(icon, color: _primaryColor, size: 18),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      color: const Color(0xFF0F172A),
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            child,
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SaleConfirmationRow extends StatelessWidget {
+  const _SaleConfirmationRow({
+    required this.label,
+    required this.value,
+    this.emphasized = false,
+  });
+
+  final String label;
+  final String value;
+  final bool emphasized;
+
+  @override
+  Widget build(BuildContext context) {
+    final amountStyle = Theme.of(context).textTheme.bodyMedium?.copyWith(
+      color: emphasized ? _primaryColor : const Color(0xFF334155),
+      fontWeight: emphasized ? FontWeight.w900 : FontWeight.w700,
+    );
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 132,
+            child: Text(
+              label,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: const Color(0xFF64748B),
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(child: Text(value, style: amountStyle)),
+        ],
+      ),
+    );
+  }
+}
+
+class _SaleConfirmationItemsTable extends StatelessWidget {
+  const _SaleConfirmationItemsTable({required this.items});
+
+  final List<_SaleCartItem> items;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: DataTable(
+          headingRowColor: WidgetStateProperty.all(_softSlateColor),
+          dataRowMinHeight: 44,
+          dataRowMaxHeight: 58,
+          columns: const [
+            DataColumn(label: Text('รหัส')),
+            DataColumn(label: Text('สินค้า')),
+            DataColumn(label: Text('จำนวน')),
+            DataColumn(label: Text('ราคา')),
+            DataColumn(label: Text('รวม')),
+          ],
+          rows: [
+            for (final item in items)
+              DataRow(
+                cells: [
+                  DataCell(Text(item.product.code)),
+                  DataCell(
+                    SizedBox(
+                      width: 220,
+                      child: Text(
+                        item.product.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ),
+                  DataCell(Text(_formatSalePrice(item.quantity))),
+                  DataCell(Text(_formatSalePrice(item.product.salePrice))),
+                  DataCell(Text(_formatSalePrice(item.lineTotal))),
+                ],
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 enum _DownPaymentInputMode { amount, percent }
+
+DateTime _defaultFirstDueDate() {
+  return _addMonthsClampedForSale(DateTime.now(), 1);
+}
+
+DateTime _dateOnlyForSale(DateTime value) {
+  final local = value.toLocal();
+  return DateTime(local.year, local.month, local.day);
+}
+
+DateTime _addMonthsClampedForSale(DateTime value, int months) {
+  final date = _dateOnlyForSale(value);
+  final monthIndex = date.month - 1 + months;
+  final year = date.year + monthIndex ~/ 12;
+  final month = monthIndex % 12 + 1;
+  final day = date.day.clamp(1, _daysInMonthForSale(year, month));
+  return DateTime(year, month, day);
+}
+
+int _daysInMonthForSale(int year, int month) {
+  return DateTime(year, month + 1, 0).day;
+}
+
+String _billingCycleText(DateTime firstDueDate) {
+  final day = firstDueDate.day;
+  if (day > 28) {
+    return 'รอบบิลทุกวันที่ $day ของเดือน และปรับเป็นวันสุดท้ายเมื่อเดือนไม่มีวันที่นี้';
+  }
+  return 'รอบบิลทุกวันที่ $day ของเดือน';
+}
+
+ThemeData _saleNoFlickerTheme(BuildContext context) {
+  final theme = Theme.of(context);
+  final enabledInputBorder = OutlineInputBorder(
+    borderRadius: BorderRadius.circular(8),
+    borderSide: const BorderSide(color: _surfaceBorderColor),
+  );
+  final focusedInputBorder = OutlineInputBorder(
+    borderRadius: BorderRadius.circular(8),
+    borderSide: const BorderSide(color: _primaryColor, width: 1.8),
+  );
+  return theme.copyWith(
+    splashFactory: NoSplash.splashFactory,
+    splashColor: Colors.transparent,
+    highlightColor: Colors.transparent,
+    hoverColor: Colors.transparent,
+    focusColor: Colors.transparent,
+    inputDecorationTheme: theme.inputDecorationTheme.copyWith(
+      focusedBorder: focusedInputBorder,
+      enabledBorder: enabledInputBorder,
+      focusColor: _softMintColor,
+      activeIndicatorBorder: const BorderSide(color: Colors.transparent),
+    ),
+    textSelectionTheme: theme.textSelectionTheme.copyWith(
+      cursorColor: _primaryColor,
+      selectionColor: _primaryColor.withValues(alpha: 0.18),
+      selectionHandleColor: _primaryColor,
+    ),
+    iconButtonTheme: IconButtonThemeData(
+      style: IconButton.styleFrom(
+        overlayColor: Colors.transparent,
+        animationDuration: Duration.zero,
+      ),
+    ),
+  );
+}
+
+ButtonStyle _saleActionButtonStyle() {
+  return FilledButton.styleFrom(
+    minimumSize: const Size(0, 48),
+    padding: const EdgeInsets.symmetric(horizontal: 16),
+    overlayColor: Colors.transparent,
+    animationDuration: Duration.zero,
+  );
+}
 
 class _SaleToggleOption<T> {
   const _SaleToggleOption({
@@ -634,9 +1226,7 @@ class _SaleToggleButton<T> extends StatelessWidget {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 140),
-          curve: Curves.easeOut,
+        child: Container(
           height: 36,
           padding: const EdgeInsets.symmetric(horizontal: 8),
           decoration: BoxDecoration(
@@ -645,15 +1235,6 @@ class _SaleToggleButton<T> extends StatelessWidget {
             border: Border.all(
               color: selected ? const Color(0xFFB7DDD6) : Colors.transparent,
             ),
-            boxShadow: selected
-                ? [
-                    BoxShadow(
-                      color: _primaryColor.withValues(alpha: 0.14),
-                      blurRadius: 14,
-                      offset: const Offset(0, 6),
-                    ),
-                  ]
-                : null,
           ),
           child: Center(
             child: FittedBox(
@@ -701,34 +1282,38 @@ class _SaleToggleButton<T> extends StatelessWidget {
 class _SaleFormPanel extends StatelessWidget {
   const _SaleFormPanel({
     required this.customers,
-    required this.selectedCustomerId,
+    required this.selectedCustomerIdListenable,
     required this.downPaymentAmountController,
     required this.downPaymentFocusNode,
     required this.downPaymentAmountListenable,
     required this.calculateTotals,
-    required this.downPaymentInputMode,
-    required this.installmentCount,
-    required this.totals,
-    required this.saving,
+    required this.downPaymentInputModeListenable,
+    required this.installmentCountListenable,
+    required this.firstDueDateListenable,
+    required this.savingListenable,
     required this.onCustomerChanged,
     required this.onInstallmentChanged,
+    required this.onFirstDueDatePick,
     required this.onDownPaymentInputModeChanged,
+    required this.onCreateCustomer,
     required this.onSave,
   });
 
   final List<Customer> customers;
-  final String? selectedCustomerId;
+  final ValueListenable<String?> selectedCustomerIdListenable;
   final TextEditingController downPaymentAmountController;
   final FocusNode downPaymentFocusNode;
   final ValueListenable<TextEditingValue> downPaymentAmountListenable;
   final SaleTotals Function() calculateTotals;
-  final _DownPaymentInputMode downPaymentInputMode;
-  final int installmentCount;
-  final SaleTotals totals;
-  final bool saving;
+  final ValueListenable<_DownPaymentInputMode> downPaymentInputModeListenable;
+  final ValueListenable<int> installmentCountListenable;
+  final ValueListenable<DateTime> firstDueDateListenable;
+  final ValueListenable<bool> savingListenable;
   final ValueChanged<String?> onCustomerChanged;
   final ValueChanged<int> onInstallmentChanged;
+  final VoidCallback onFirstDueDatePick;
   final ValueChanged<_DownPaymentInputMode> onDownPaymentInputModeChanged;
+  final VoidCallback onCreateCustomer;
   final VoidCallback onSave;
 
   @override
@@ -741,13 +1326,11 @@ class _SaleFormPanel extends StatelessWidget {
           iconColor: _primaryColor,
           title: 'ข้อมูลการขาย',
           children: [
-            _SaleCustomerSearchField(
-              fieldKey: const ValueKey('sale-customer-search-field'),
-              label: 'ค้นหาลูกค้า',
-              icon: SolarIconsOutline.userSpeakRounded,
+            _SaleCustomerInputRow(
               customers: customers,
-              selectedCustomerId: selectedCustomerId,
+              selectedCustomerIdListenable: selectedCustomerIdListenable,
               onChanged: onCustomerChanged,
+              onCreateCustomer: onCreateCustomer,
             ),
           ],
         ),
@@ -764,32 +1347,58 @@ class _SaleFormPanel extends StatelessWidget {
               ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 10),
-            _SaleInstallmentSelector(
-              selectedCount: installmentCount,
-              onChanged: onInstallmentChanged,
+            ValueListenableBuilder<int>(
+              valueListenable: installmentCountListenable,
+              builder: (context, installmentCount, child) {
+                return _SaleInstallmentSelector(
+                  selectedCount: installmentCount,
+                  onChanged: onInstallmentChanged,
+                );
+              },
             ),
             const SizedBox(height: 14),
-            _SaleDownPaymentInputRow(
-              controller: downPaymentAmountController,
-              focusNode: downPaymentFocusNode,
-              amountListenable: downPaymentAmountListenable,
-              inputMode: downPaymentInputMode,
-              calculateTotals: calculateTotals,
-              onInputModeChanged: onDownPaymentInputModeChanged,
+            ValueListenableBuilder<DateTime>(
+              valueListenable: firstDueDateListenable,
+              builder: (context, firstDueDate, child) {
+                return _SaleBillingCycleField(
+                  firstDueDate: firstDueDate,
+                  onTap: onFirstDueDatePick,
+                );
+              },
+            ),
+            const SizedBox(height: 14),
+            ValueListenableBuilder<_DownPaymentInputMode>(
+              valueListenable: downPaymentInputModeListenable,
+              builder: (context, downPaymentInputMode, child) {
+                return _SaleDownPaymentInputRow(
+                  controller: downPaymentAmountController,
+                  focusNode: downPaymentFocusNode,
+                  amountListenable: downPaymentAmountListenable,
+                  inputMode: downPaymentInputMode,
+                  calculateTotals: calculateTotals,
+                  onInputModeChanged: onDownPaymentInputModeChanged,
+                );
+              },
             ),
           ],
         ),
       ],
     );
-    final saveButton = FilledButton.icon(
-      onPressed: saving ? null : onSave,
-      icon: saving
-          ? const SizedBox.square(
-              dimension: 18,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            )
-          : const Icon(SolarIconsOutline.diskette),
-      label: Text(saving ? 'กำลังบันทึก...' : 'บันทึกการขาย'),
+    final saveButton = ValueListenableBuilder<bool>(
+      valueListenable: savingListenable,
+      builder: (context, saving, child) {
+        return FilledButton.icon(
+          onPressed: saving ? null : onSave,
+          style: _saleActionButtonStyle(),
+          icon: saving
+              ? const SizedBox.square(
+                  dimension: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(SolarIconsOutline.diskette),
+          label: Text(saving ? 'กำลังบันทึก...' : 'บันทึกการขาย'),
+        );
+      },
     );
 
     return DecoratedBox(
@@ -822,6 +1431,101 @@ class _SaleFormPanel extends StatelessWidget {
           },
         ),
       ),
+    );
+  }
+}
+
+class _SaleCustomerInputRow extends StatelessWidget {
+  const _SaleCustomerInputRow({
+    required this.customers,
+    required this.selectedCustomerIdListenable,
+    required this.onChanged,
+    required this.onCreateCustomer,
+  });
+
+  final List<Customer> customers;
+  final ValueListenable<String?> selectedCustomerIdListenable;
+  final ValueChanged<String?> onChanged;
+  final VoidCallback onCreateCustomer;
+
+  Customer? _selectedCustomer(String? selectedCustomerId) {
+    final id = selectedCustomerId;
+    if (id == null) {
+      return null;
+    }
+    for (final customer in customers) {
+      if (customer.id == id) {
+        return customer;
+      }
+    }
+    return null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final createButton = SizedBox(
+      height: 48,
+      child: FilledButton.icon(
+        onPressed: onCreateCustomer,
+        style: _saleActionButtonStyle(),
+        icon: const Icon(SolarIconsOutline.userPlusRounded),
+        label: const Text('เพิ่มลูกค้า'),
+      ),
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return ValueListenableBuilder<String?>(
+          valueListenable: selectedCustomerIdListenable,
+          builder: (context, selectedCustomerId, child) {
+            final selectedCustomer = _selectedCustomer(selectedCustomerId);
+            final customerField = _SaleCustomerSearchField(
+              fieldKey: const ValueKey('sale-customer-search-field'),
+              label: 'ค้นหาลูกค้า',
+              icon: SolarIconsOutline.userSpeakRounded,
+              customers: customers,
+              selectedCustomerId: selectedCustomerId,
+              onChanged: onChanged,
+            );
+
+            Widget inputRow;
+            if (constraints.maxWidth < 340) {
+              inputRow = Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  customerField,
+                  const SizedBox(height: 10),
+                  Align(alignment: Alignment.centerLeft, child: createButton),
+                ],
+              );
+            } else {
+              inputRow = Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: customerField),
+                  const SizedBox(width: 12),
+                  SizedBox(width: 132, child: createButton),
+                ],
+              );
+            }
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                inputRow,
+                if (selectedCustomer != null) ...[
+                  const SizedBox(height: 10),
+                  _SaleSelectedCustomerCard(customer: selectedCustomer),
+                ],
+                if (selectedCustomer?.isBlacklisted == true) ...[
+                  const SizedBox(height: 8),
+                  const _SaleBlacklistWarning(),
+                ],
+              ],
+            );
+          },
+        );
+      },
     );
   }
 }
@@ -986,9 +1690,7 @@ class _SaleInstallmentOption extends StatelessWidget {
       key: ValueKey('sale-installment-$count'),
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 140),
-        curve: Curves.easeOut,
+      child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
         decoration: BoxDecoration(
           color: selected ? _softMintColor : _surfaceColor,
@@ -996,15 +1698,6 @@ class _SaleInstallmentOption extends StatelessWidget {
           border: Border.all(
             color: selected ? const Color(0xFF9FD8CE) : _surfaceBorderColor,
           ),
-          boxShadow: selected
-              ? [
-                  BoxShadow(
-                    color: _primaryColor.withValues(alpha: 0.12),
-                    blurRadius: 14,
-                    offset: const Offset(0, 8),
-                  ),
-                ]
-              : null,
         ),
         child: Center(
           child: FittedBox(
@@ -1036,17 +1729,64 @@ class _SaleInstallmentOption extends StatelessWidget {
   }
 }
 
+class _SaleBillingCycleField extends StatelessWidget {
+  const _SaleBillingCycleField({
+    required this.firstDueDate,
+    required this.onTap,
+  });
+
+  final DateTime firstDueDate;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: 'เลือกวันที่ต้องชำระรอบแรก',
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: onTap,
+          child: InputDecorator(
+            isEmpty: false,
+            decoration: const InputDecoration(
+              labelText: 'วันที่ต้องชำระรอบแรก *',
+              prefixIcon: Icon(SolarIconsOutline.calendarMinimalistic),
+              suffixIcon: Icon(Icons.keyboard_arrow_down_rounded),
+            ).copyWith(helperText: _billingCycleText(firstDueDate)),
+            child: Text(
+              _formatDate(firstDueDate),
+              key: const ValueKey('sale-first-due-date-value'),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                color: const Color(0xFF0F172A),
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _SaleTotalSummaryCard extends StatelessWidget {
   const _SaleTotalSummaryCard({
-    required this.vatOption,
-    required this.installmentCount,
+    required this.vatOptionListenable,
+    required this.installmentCountListenable,
+    required this.firstDueDateListenable,
+    required this.cartItemsListenable,
     required this.downPaymentAmountListenable,
     required this.calculateTotals,
     required this.onVatOptionChanged,
   });
 
-  final SaleVatOption vatOption;
-  final int installmentCount;
+  final ValueListenable<SaleVatOption> vatOptionListenable;
+  final ValueListenable<int> installmentCountListenable;
+  final ValueListenable<DateTime> firstDueDateListenable;
+  final ValueListenable<List<_SaleCartItem>> cartItemsListenable;
   final ValueListenable<TextEditingValue> downPaymentAmountListenable;
   final SaleTotals Function() calculateTotals;
   final ValueChanged<SaleVatOption> onVatOptionChanged;
@@ -1072,77 +1812,98 @@ class _SaleTotalSummaryCard extends StatelessWidget {
         ),
       ],
     );
-    final vatSelector = _SaleToggleGroup<SaleVatOption>(
-      options: const [
-        _SaleToggleOption(
-          value: SaleVatOption.none,
-          icon: SolarIconsOutline.bill,
-          label: 'ไม่มี VAT',
-        ),
-        _SaleToggleOption(
-          value: SaleVatOption.excluded,
-          icon: SolarIconsOutline.billCheck,
-          label: 'VAT 7% แยก',
-        ),
-        _SaleToggleOption(
-          value: SaleVatOption.included,
-          icon: SolarIconsOutline.billList,
-          label: 'VAT 7% รวม',
-        ),
-      ],
-      selectedValue: vatOption,
-      onChanged: onVatOptionChanged,
-    );
+    return ValueListenableBuilder<SaleVatOption>(
+      valueListenable: vatOptionListenable,
+      builder: (context, vatOption, child) {
+        final vatSelector = _SaleToggleGroup<SaleVatOption>(
+          options: const [
+            _SaleToggleOption(
+              value: SaleVatOption.none,
+              icon: SolarIconsOutline.bill,
+              label: 'ไม่มี VAT',
+            ),
+            _SaleToggleOption(
+              value: SaleVatOption.excluded,
+              icon: SolarIconsOutline.billCheck,
+              label: 'VAT 7% แยก',
+            ),
+            _SaleToggleOption(
+              value: SaleVatOption.included,
+              icon: SolarIconsOutline.billList,
+              label: 'VAT 7% รวม',
+            ),
+          ],
+          selectedValue: vatOption,
+          onChanged: onVatOptionChanged,
+        );
 
-    return DecoratedBox(
-      decoration: const BoxDecoration(
-        border: Border(top: BorderSide(color: _surfaceBorderColor)),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.only(top: 10),
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            Widget header;
-            if (constraints.maxWidth >= 520) {
-              var selectorWidth = constraints.maxWidth - 170;
-              if (selectorWidth > 430) {
-                selectorWidth = 430;
-              }
+        return DecoratedBox(
+          decoration: const BoxDecoration(
+            border: Border(top: BorderSide(color: _surfaceBorderColor)),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.only(top: 10),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                Widget header;
+                if (constraints.maxWidth >= 520) {
+                  var selectorWidth = constraints.maxWidth - 170;
+                  if (selectorWidth > 430) {
+                    selectorWidth = 430;
+                  }
 
-              header = Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Expanded(child: title),
-                  const SizedBox(width: 18),
-                  SizedBox(width: selectorWidth, child: vatSelector),
-                ],
-              );
-            } else {
-              header = Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [title, const SizedBox(height: 12), vatSelector],
-              );
-            }
+                  header = Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Expanded(child: title),
+                      const SizedBox(width: 18),
+                      SizedBox(width: selectorWidth, child: vatSelector),
+                    ],
+                  );
+                } else {
+                  header = Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [title, const SizedBox(height: 12), vatSelector],
+                  );
+                }
 
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                header,
-                const SizedBox(height: 8),
-                ValueListenableBuilder<TextEditingValue>(
-                  valueListenable: downPaymentAmountListenable,
-                  builder: (context, value, child) {
-                    return _SaleAccountingStatement(
-                      totals: calculateTotals(),
-                      installmentCount: installmentCount,
-                    );
-                  },
-                ),
-              ],
-            );
-          },
-        ),
-      ),
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    header,
+                    const SizedBox(height: 8),
+                    ValueListenableBuilder<int>(
+                      valueListenable: installmentCountListenable,
+                      builder: (context, installmentCount, child) {
+                        return ValueListenableBuilder<DateTime>(
+                          valueListenable: firstDueDateListenable,
+                          builder: (context, firstDueDate, child) {
+                            return ValueListenableBuilder<List<_SaleCartItem>>(
+                              valueListenable: cartItemsListenable,
+                              builder: (context, cartItems, child) {
+                                return ValueListenableBuilder<TextEditingValue>(
+                                  valueListenable: downPaymentAmountListenable,
+                                  builder: (context, value, child) {
+                                    return _SaleAccountingStatement(
+                                      totals: calculateTotals(),
+                                      installmentCount: installmentCount,
+                                      firstDueDate: firstDueDate,
+                                    );
+                                  },
+                                );
+                              },
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -1151,10 +1912,12 @@ class _SaleAccountingStatement extends StatelessWidget {
   const _SaleAccountingStatement({
     required this.totals,
     required this.installmentCount,
+    required this.firstDueDate,
   });
 
   final SaleTotals totals;
   final int installmentCount;
+  final DateTime firstDueDate;
 
   @override
   Widget build(BuildContext context) {
@@ -1207,6 +1970,18 @@ class _SaleAccountingStatement extends StatelessWidget {
             amountKey: const ValueKey('sale-summary-installment-amount'),
             amountColor: _primaryColor,
             emphasized: true,
+          ),
+          _SaleAccountingRow(
+            label: 'วันที่ต้องชำระ',
+            detail: 'รอบแรก',
+            amount: _formatDate(firstDueDate),
+            unit: '',
+            showDivider: true,
+          ),
+          _SaleAccountingRow(
+            label: 'รอบบิล',
+            amount: 'ทุกวันที่ ${firstDueDate.day}',
+            unit: 'ของเดือน',
           ),
         ],
       ),
@@ -1338,58 +2113,29 @@ class _SaleCustomerSearchField extends StatelessWidget {
   final String? selectedCustomerId;
   final ValueChanged<String?> onChanged;
 
-  Customer? get _selectedCustomer {
-    final id = selectedCustomerId;
-    if (id == null) {
-      return null;
-    }
-    for (final customer in customers) {
-      if (customer.id == id) {
-        return customer;
-      }
-    }
-    return null;
-  }
-
   @override
   Widget build(BuildContext context) {
-    final selectedCustomer = _selectedCustomer;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _SaleSearchField<Customer>(
-          fieldKey: fieldKey,
-          label: label,
-          icon: icon,
-          emptyText: 'ไม่พบลูกค้า',
-          items: customers,
-          selectedValue: selectedCustomerId,
-          itemValue: (customer) => customer.id,
-          itemLabel: (customer) => customer.name,
-          itemSearchText: (customer) => [
-            customer.name,
-            customer.nickname ?? '',
-            customer.phone ?? '',
-            customer.lineId ?? '',
-            customer.taxId ?? '',
-            customer.province ?? '',
-          ].join(' '),
-          optionBuilder: (context, customer, selected) {
-            return _SaleCustomerOption(customer: customer, selected: selected);
-          },
-          onChanged: onChanged,
-        ),
-        if (selectedCustomer != null) ...[
-          const SizedBox(height: 8),
-          _SaleCustomerStatusBadge(
-            isBlacklisted: selectedCustomer.isBlacklisted,
-          ),
-        ],
-        if (selectedCustomer?.isBlacklisted == true) ...[
-          const SizedBox(height: 8),
-          const _SaleBlacklistWarning(),
-        ],
-      ],
+    return _SaleSearchField<Customer>(
+      fieldKey: fieldKey,
+      label: label,
+      icon: icon,
+      emptyText: 'ไม่พบลูกค้า',
+      items: customers,
+      selectedValue: selectedCustomerId,
+      itemValue: (customer) => customer.id,
+      itemLabel: (customer) => customer.name,
+      itemSearchText: (customer) => [
+        customer.name,
+        customer.nickname ?? '',
+        customer.phone ?? '',
+        customer.lineId ?? '',
+        customer.taxId ?? '',
+        customer.province ?? '',
+      ].join(' '),
+      optionBuilder: (context, customer, selected) {
+        return _SaleCustomerOption(customer: customer, selected: selected);
+      },
+      onChanged: onChanged,
     );
   }
 }
@@ -1436,7 +2182,7 @@ class _SaleProductSearchField extends StatelessWidget {
   }
 }
 
-class _SaleSearchField<T> extends StatefulWidget {
+class _SaleSearchField<T extends Object> extends StatefulWidget {
   const _SaleSearchField({
     required this.fieldKey,
     required this.label,
@@ -1468,10 +2214,11 @@ class _SaleSearchField<T> extends StatefulWidget {
   State<_SaleSearchField<T>> createState() => _SaleSearchFieldState<T>();
 }
 
-class _SaleSearchFieldState<T> extends State<_SaleSearchField<T>> {
+class _SaleSearchFieldState<T extends Object>
+    extends State<_SaleSearchField<T>> {
   late final TextEditingController _controller;
   late final FocusNode _focusNode;
-  var _query = '';
+  var _preserveTextForUserClear = false;
 
   String? get _selectedLabel {
     final value = widget.selectedValue;
@@ -1486,8 +2233,8 @@ class _SaleSearchFieldState<T> extends State<_SaleSearchField<T>> {
     return null;
   }
 
-  List<T> get _options {
-    final query = _query.trim().toLowerCase();
+  List<T> _optionsForText(String value) {
+    final query = value.trim().toLowerCase();
     final matches = query.isEmpty
         ? widget.items
         : widget.items.where((item) {
@@ -1500,128 +2247,185 @@ class _SaleSearchFieldState<T> extends State<_SaleSearchField<T>> {
   void initState() {
     super.initState();
     _controller = TextEditingController(text: _selectedLabel ?? '');
-    _query = _controller.text;
+    _controller.addListener(_handleControllerChanged);
     _focusNode = FocusNode();
-    _focusNode.addListener(_handleFocusChanged);
   }
 
   @override
   void didUpdateWidget(covariant _SaleSearchField<T> oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (!_focusNode.hasFocus) {
-      final selectedLabel = _selectedLabel ?? '';
-      if (_controller.text != selectedLabel) {
-        _controller.text = selectedLabel;
-      }
-      _query = _controller.text;
+    if (widget.selectedValue == oldWidget.selectedValue &&
+        widget.items == oldWidget.items) {
+      return;
+    }
+    if (_preserveTextForUserClear &&
+        widget.selectedValue == null &&
+        oldWidget.selectedValue != null) {
+      _preserveTextForUserClear = false;
+      return;
+    }
+    if (!_focusNode.hasFocus ||
+        widget.selectedValue != oldWidget.selectedValue ||
+        widget.selectedValue != null) {
+      _syncControllerToSelectedLabel();
     }
   }
 
   @override
   void dispose() {
-    _focusNode.removeListener(_handleFocusChanged);
     _focusNode.dispose();
+    _controller.removeListener(_handleControllerChanged);
     _controller.dispose();
     super.dispose();
   }
 
-  void _handleFocusChanged() {
+  void _handleControllerChanged() {
     if (mounted) {
       setState(() {});
     }
   }
 
+  void _handleFocusChanged() {
+    // Compatibility for debug hot reload: older live _SaleSearchFieldState
+    // instances may still have this listener attached to their FocusNode.
+  }
+
+  @override
+  void reassemble() {
+    super.reassemble();
+    _focusNode.removeListener(_handleFocusChanged);
+  }
+
   void _handleTextChanged(String value) {
     final selectedLabel = _selectedLabel;
     if (widget.selectedValue != null && value != selectedLabel) {
+      _preserveTextForUserClear = true;
       widget.onChanged(null);
     }
-    setState(() => _query = value);
   }
 
-  void _select(T item) {
-    final label = widget.itemLabel(item);
-    _controller.text = label;
-    _query = label;
-    widget.onChanged(widget.itemValue(item));
-    _focusNode.unfocus();
+  void _syncControllerToSelectedLabel() {
+    final selectedLabel = _selectedLabel ?? '';
+    if (_controller.text == selectedLabel) {
+      return;
+    }
+    _controller.value = TextEditingValue(
+      text: selectedLabel,
+      selection: TextSelection.collapsed(offset: selectedLabel.length),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final options = _options;
-    final showOptions = _focusNode.hasFocus;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        TextFormField(
+    return RawAutocomplete<T>(
+      textEditingController: _controller,
+      focusNode: _focusNode,
+      displayStringForOption: widget.itemLabel,
+      optionsBuilder: (value) => _optionsForText(value.text),
+      onSelected: (item) {
+        widget.onChanged(widget.itemValue(item));
+        _focusNode.unfocus();
+      },
+      fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
+        return TextFormField(
           key: widget.fieldKey,
-          controller: _controller,
-          focusNode: _focusNode,
+          controller: controller,
+          focusNode: focusNode,
           decoration: InputDecoration(
-            labelText: widget.label,
+            hintText: widget.label,
             prefixIcon: Icon(widget.icon),
-            suffixIcon: _controller.text.isEmpty
+            suffixIcon: controller.text.isEmpty
                 ? null
                 : IconButton(
                     tooltip: 'ล้าง',
                     onPressed: () {
-                      _controller.clear();
+                      controller.clear();
                       widget.onChanged(null);
-                      setState(() => _query = '');
-                      _focusNode.requestFocus();
+                      focusNode.requestFocus();
                     },
                     icon: const Icon(SolarIconsOutline.closeCircle),
                   ),
           ),
           onChanged: _handleTextChanged,
+          onFieldSubmitted: (_) => onFieldSubmitted(),
+        );
+      },
+      optionsViewBuilder: (context, onSelected, options) {
+        return _SaleSearchOptionsPopover<T>(
+          emptyText: widget.emptyText,
+          options: options.toList(growable: false),
+          selectedValue: widget.selectedValue,
+          itemValue: widget.itemValue,
+          optionBuilder: widget.optionBuilder,
+          onSelect: onSelected,
+        );
+      },
+    );
+  }
+}
+
+class _SaleSearchOptionsPopover<T extends Object> extends StatelessWidget {
+  const _SaleSearchOptionsPopover({
+    required this.emptyText,
+    required this.options,
+    required this.selectedValue,
+    required this.itemValue,
+    required this.optionBuilder,
+    required this.onSelect,
+  });
+
+  final String emptyText;
+  final List<T> options;
+  final String? selectedValue;
+  final String Function(T item) itemValue;
+  final Widget Function(BuildContext context, T item, bool selected)
+  optionBuilder;
+  final ValueChanged<T> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: _surfaceColor,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: _surfaceBorderColor),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x1A0F172A),
+              blurRadius: 16,
+              offset: Offset(0, 8),
+            ),
+          ],
         ),
-        if (showOptions) ...[
-          const SizedBox(height: 8),
-          DecoratedBox(
-            decoration: BoxDecoration(
-              color: _surfaceColor,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: _surfaceBorderColor),
-            ),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 180),
-              child: options.isEmpty
-                  ? SizedBox(
-                      height: 48,
-                      child: Center(child: Text(widget.emptyText)),
-                    )
-                  : ListView.separated(
-                      shrinkWrap: true,
-                      padding: const EdgeInsets.symmetric(vertical: 6),
-                      itemCount: options.length,
-                      separatorBuilder: (context, index) {
-                        return const Divider(height: 1);
-                      },
-                      itemBuilder: (context, index) {
-                        final item = options[index];
-                        final selected =
-                            widget.selectedValue == widget.itemValue(item);
-                        return Semantics(
-                          button: true,
-                          onTap: () => _select(item),
-                          child: GestureDetector(
-                            behavior: HitTestBehavior.opaque,
-                            onTapDown: (_) => _select(item),
-                            child: widget.optionBuilder(
-                              context,
-                              item,
-                              selected,
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-            ),
-          ),
-        ],
-      ],
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: 180),
+          child: options.isEmpty
+              ? SizedBox(height: 48, child: Center(child: Text(emptyText)))
+              : ListView.separated(
+                  shrinkWrap: true,
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  itemCount: options.length,
+                  separatorBuilder: (context, index) {
+                    return const Divider(height: 1);
+                  },
+                  itemBuilder: (context, index) {
+                    final item = options[index];
+                    final selected = selectedValue == itemValue(item);
+                    return Semantics(
+                      button: true,
+                      onTap: () => onSelect(item),
+                      child: Listener(
+                        behavior: HitTestBehavior.opaque,
+                        onPointerUp: (_) => onSelect(item),
+                        child: optionBuilder(context, item, selected),
+                      ),
+                    );
+                  },
+                ),
+        ),
+      ),
     );
   }
 }
@@ -1723,6 +2527,130 @@ class _SaleProductOption extends StatelessWidget {
             style: Theme.of(context).textTheme.labelLarge?.copyWith(
               color: _primaryColor,
               fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SaleSelectedCustomerCard extends StatelessWidget {
+  const _SaleSelectedCustomerCard({required this.customer});
+
+  final Customer customer;
+
+  String get _displayName {
+    final nickname = customer.nickname?.trim();
+    if (nickname == null || nickname.isEmpty) {
+      return customer.name;
+    }
+    return '${customer.name} ($nickname)';
+  }
+
+  String get _displayAddress {
+    final parts =
+        [
+              customer.address,
+              customer.subDistrict,
+              customer.district,
+              customer.province,
+              customer.zipcode,
+            ]
+            .whereType<String>()
+            .map((value) => value.trim())
+            .where((value) => value.isNotEmpty)
+            .toList();
+    if (parts.isEmpty) {
+      return '-';
+    }
+    return parts.join(' ');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FBFA),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFD8E7E4)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                const Icon(
+                  SolarIconsOutline.userId,
+                  color: _primaryColor,
+                  size: 18,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'ข้อมูลลูกค้า',
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      color: const Color(0xFF0F172A),
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+                _SaleCustomerStatusBadge(isBlacklisted: customer.isBlacklisted),
+              ],
+            ),
+            const SizedBox(height: 10),
+            _SaleCustomerDetailRow(label: 'ชื่อ - สกุล', value: _displayName),
+            _SaleCustomerDetailRow(
+              label: 'เลขบัตรประชาชน',
+              value: _displayText(customer.taxId),
+            ),
+            _SaleCustomerDetailRow(
+              label: 'วันเกิด',
+              value: customer.birthDate == null
+                  ? '-'
+                  : _formatDate(customer.birthDate!),
+            ),
+            _SaleCustomerDetailRow(label: 'ที่อยู่', value: _displayAddress),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SaleCustomerDetailRow extends StatelessWidget {
+  const _SaleCustomerDetailRow({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 108,
+            child: Text(
+              label,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: const Color(0xFF64748B),
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              value,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: const Color(0xFF334155),
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
         ],
@@ -1844,68 +2772,108 @@ class _SaleBlacklistWarning extends StatelessWidget {
 class _SaleCartPanel extends StatelessWidget {
   const _SaleCartPanel({
     required this.products,
-    required this.selectedProductId,
+    required this.selectedProductIdListenable,
     required this.quantityController,
     required this.productQuantityFocusNode,
-    required this.cartItems,
-    required this.vatOption,
-    required this.installmentCount,
+    required this.cartItemsListenable,
+    required this.vatOptionListenable,
+    required this.installmentCountListenable,
+    required this.firstDueDateListenable,
     required this.downPaymentAmountListenable,
     required this.calculateTotals,
     required this.onProductChanged,
     required this.onAddToCart,
+    required this.onCreateProduct,
     required this.onQuantityChanged,
     required this.onRemove,
     required this.onVatOptionChanged,
   });
 
   final List<Product> products;
-  final String? selectedProductId;
+  final ValueListenable<String?> selectedProductIdListenable;
   final TextEditingController quantityController;
   final FocusNode productQuantityFocusNode;
-  final List<_SaleCartItem> cartItems;
-  final SaleVatOption vatOption;
-  final int installmentCount;
+  final ValueListenable<List<_SaleCartItem>> cartItemsListenable;
+  final ValueListenable<SaleVatOption> vatOptionListenable;
+  final ValueListenable<int> installmentCountListenable;
+  final ValueListenable<DateTime> firstDueDateListenable;
   final ValueListenable<TextEditingValue> downPaymentAmountListenable;
   final SaleTotals Function() calculateTotals;
   final ValueChanged<String?> onProductChanged;
   final VoidCallback onAddToCart;
+  final VoidCallback onCreateProduct;
   final void Function(Product product, double quantity) onQuantityChanged;
   final ValueChanged<Product> onRemove;
   final ValueChanged<SaleVatOption> onVatOptionChanged;
 
   @override
   Widget build(BuildContext context) {
-    final header = Row(
-      children: [
-        const Icon(SolarIconsOutline.cartLarge, color: _primaryColor),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            'รายการสินค้า',
-            style: Theme.of(
-              context,
-            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
-          ),
-        ),
-      ],
+    final header = LayoutBuilder(
+      builder: (context, constraints) {
+        final title = Row(
+          children: [
+            const Icon(SolarIconsOutline.cartLarge, color: _primaryColor),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'รายการสินค้า',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+              ),
+            ),
+          ],
+        );
+        final createButton = FilledButton.icon(
+          onPressed: onCreateProduct,
+          style: _saleActionButtonStyle(),
+          icon: const Icon(SolarIconsOutline.box),
+          label: const Text('เพิ่มสินค้า'),
+        );
+
+        if (constraints.maxWidth < 360) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              title,
+              const SizedBox(height: 10),
+              Align(alignment: Alignment.centerLeft, child: createButton),
+            ],
+          );
+        }
+
+        return Row(
+          children: [
+            Expanded(child: title),
+            const SizedBox(width: 12),
+            createButton,
+          ],
+        );
+      },
     );
     final inputBar = _SaleCartInputBar(
       products: products,
-      selectedProductId: selectedProductId,
+      selectedProductIdListenable: selectedProductIdListenable,
       quantityController: quantityController,
       productQuantityFocusNode: productQuantityFocusNode,
       onProductChanged: onProductChanged,
       onAddToCart: onAddToCart,
     );
-    final cartItemsArea = _SaleCartItemsArea(
-      cartItems: cartItems,
-      onQuantityChanged: onQuantityChanged,
-      onRemove: onRemove,
+    final cartItemsArea = ValueListenableBuilder<List<_SaleCartItem>>(
+      valueListenable: cartItemsListenable,
+      builder: (context, cartItems, child) {
+        return _SaleCartItemsArea(
+          cartItems: cartItems,
+          onQuantityChanged: onQuantityChanged,
+          onRemove: onRemove,
+        );
+      },
     );
     final summaryCard = _SaleTotalSummaryCard(
-      vatOption: vatOption,
-      installmentCount: installmentCount,
+      vatOptionListenable: vatOptionListenable,
+      installmentCountListenable: installmentCountListenable,
+      firstDueDateListenable: firstDueDateListenable,
+      cartItemsListenable: cartItemsListenable,
       downPaymentAmountListenable: downPaymentAmountListenable,
       calculateTotals: calculateTotals,
       onVatOptionChanged: onVatOptionChanged,
@@ -2055,7 +3023,7 @@ class _SaleCartItemsArea extends StatelessWidget {
 class _SaleCartInputBar extends StatelessWidget {
   const _SaleCartInputBar({
     required this.products,
-    required this.selectedProductId,
+    required this.selectedProductIdListenable,
     required this.quantityController,
     required this.productQuantityFocusNode,
     required this.onProductChanged,
@@ -2063,7 +3031,7 @@ class _SaleCartInputBar extends StatelessWidget {
   });
 
   final List<Product> products;
-  final String? selectedProductId;
+  final ValueListenable<String?> selectedProductIdListenable;
   final TextEditingController quantityController;
   final FocusNode productQuantityFocusNode;
   final ValueChanged<String?> onProductChanged;
@@ -2073,13 +3041,18 @@ class _SaleCartInputBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final productField = _SaleProductSearchField(
-          fieldKey: const ValueKey('sale-product-search-field'),
-          label: 'ค้นหาสินค้า',
-          icon: SolarIconsOutline.box,
-          products: products,
-          selectedProductId: selectedProductId,
-          onChanged: onProductChanged,
+        final productField = ValueListenableBuilder<String?>(
+          valueListenable: selectedProductIdListenable,
+          builder: (context, selectedProductId, child) {
+            return _SaleProductSearchField(
+              fieldKey: const ValueKey('sale-product-search-field'),
+              label: 'ค้นหาสินค้า',
+              icon: SolarIconsOutline.box,
+              products: products,
+              selectedProductId: selectedProductId,
+              onChanged: onProductChanged,
+            );
+          },
         );
         final quantityField = _CustomerTextField(
           controller: quantityController,
@@ -2091,10 +3064,14 @@ class _SaleCartInputBar extends StatelessWidget {
           fieldKey: const ValueKey('sale-product-quantity-field'),
           focusNode: productQuantityFocusNode,
         );
-        final addButton = FilledButton.icon(
-          onPressed: onAddToCart,
-          icon: const Icon(SolarIconsOutline.cartPlus),
-          label: const Text('เพิ่มรายการ'),
+        final addButton = SizedBox(
+          height: 48,
+          child: FilledButton.icon(
+            onPressed: onAddToCart,
+            style: _saleActionButtonStyle(),
+            icon: const Icon(SolarIconsOutline.cartPlus),
+            label: const Text('เพิ่มรายการ'),
+          ),
         );
 
         if (constraints.maxWidth < 720) {

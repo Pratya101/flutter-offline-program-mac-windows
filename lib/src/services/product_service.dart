@@ -39,13 +39,13 @@ class ProductService {
     );
   }
 
-  Future<void> updateProduct({
+  Future<Product> updateProduct({
     required String id,
     required ProductPayload payload,
   }) async {
     _validate(payload);
     final code = await _resolveCode(payload.code, editingProductId: id);
-    await _database.updateProduct(
+    return _database.updateProduct(
       id: id,
       code: code,
       name: payload.name,
