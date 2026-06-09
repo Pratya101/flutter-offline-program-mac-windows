@@ -535,7 +535,6 @@ class AppDatabase extends _$AppDatabase {
   }
 
   Future<Sale> createSale({
-    required String saleNumber,
     required String customerId,
     required String customerName,
     required String vatOption,
@@ -562,8 +561,8 @@ class AppDatabase extends _$AppDatabase {
       installmentCount: installmentCount,
       installmentAmount: installmentAmount,
     );
-
     await transaction(() async {
+      final saleNumber = await _nextSaleNumber(now);
       await into(sales).insert(
         SalesCompanion.insert(
           id: saleId,
@@ -622,6 +621,24 @@ class AppDatabase extends _$AppDatabase {
     return (select(
       sales,
     )..where((table) => table.id.equals(saleId))).getSingle();
+  }
+
+  Future<String> _nextSaleNumber(DateTime saleDate) async {
+    final prefix = _saleNumberPrefix(saleDate);
+    final row = await customSelect(
+      '''
+SELECT COALESCE(MAX(CAST(substr(sale_number, ?) AS INTEGER)), 0) AS sequence
+FROM sales
+WHERE sale_number LIKE ?
+''',
+      variables: [
+        Variable<int>(prefix.length + 1),
+        Variable<String>('$prefix%'),
+      ],
+      readsFrom: {sales},
+    ).getSingle();
+    final sequence = row.read<int>('sequence') + 1;
+    return '$prefix${sequence.toString().padLeft(4, '0')}';
   }
 
   Future<List<SaleItem>> getSaleItems(String saleId) {
@@ -728,6 +745,22 @@ class AppDatabase extends _$AppDatabase {
     return query.watch();
   }
 
+  Future<bool> hasActiveUsers() async {
+    final query = select(users)
+      ..where((table) => table.isDeleted.equals(false))
+      ..limit(1);
+
+    return (await query.getSingleOrNull()) != null;
+  }
+
+  Future<User?> findUserByUsername(String username) {
+    final query = select(users)
+      ..where((table) => table.username.equals(_normalizeUsername(username)))
+      ..limit(1);
+
+    return query.getSingleOrNull();
+  }
+
   Future<User?> findActiveUserByUsername(String username) {
     final query = select(users)
       ..where((table) => table.username.equals(_normalizeUsername(username)))
@@ -769,6 +802,41 @@ class AppDatabase extends _$AppDatabase {
     );
 
     return (select(users)..where((table) => table.id.equals(id))).getSingle();
+  }
+
+  Future<User> upsertBootstrapUser({
+    required String fullName,
+    required String username,
+    required String passwordHash,
+    required String passwordSalt,
+    String? phone,
+  }) async {
+    final existing = await findUserByUsername(username);
+    if (existing == null) {
+      return createUser(
+        fullName: fullName,
+        username: username,
+        passwordHash: passwordHash,
+        passwordSalt: passwordSalt,
+        phone: phone,
+      );
+    }
+
+    await (update(users)..where((table) => table.id.equals(existing.id))).write(
+      UsersCompanion(
+        fullName: Value(fullName.trim()),
+        username: Value(_normalizeUsername(username)),
+        passwordHash: Value(passwordHash),
+        passwordSalt: Value(passwordSalt),
+        phone: Value(_blankToNull(phone)),
+        updatedAt: Value(DateTime.now()),
+        isDeleted: const Value(false),
+      ),
+    );
+
+    return (select(
+      users,
+    )..where((table) => table.id.equals(existing.id))).getSingle();
   }
 
   Future<Shop?> findPrimaryShop() {
@@ -1073,6 +1141,14 @@ DateTime? _dateOnlyOrNull(DateTime? value) {
 DateTime _dateOnly(DateTime value) {
   final local = value.toLocal();
   return DateTime(local.year, local.month, local.day);
+}
+
+String _saleNumberPrefix(DateTime value) {
+  final local = value.toLocal();
+  final buddhistYear = local.year + 543;
+  final shortYear = (buddhistYear % 100).toString().padLeft(2, '0');
+  final month = local.month.toString().padLeft(2, '0');
+  return 'OR$shortYear$month-';
 }
 
 String _sqliteTextLiteral(String value) {

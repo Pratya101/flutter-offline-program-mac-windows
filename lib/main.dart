@@ -108,6 +108,19 @@ class _OfflineProgramAppState extends State<OfflineProgramApp> {
         GlobalCupertinoLocalizations.delegate,
       ],
       supportedLocales: const [Locale('th', 'TH'), Locale('en', 'US')],
+      builder: (context, child) {
+        final app = child ?? const SizedBox.shrink();
+        if (!_licenseService.snapshot.isDemo) {
+          return app;
+        }
+
+        return Stack(
+          children: [
+            app,
+            const Positioned.fill(child: _DemoAppWatermark()),
+          ],
+        );
+      },
       theme: ThemeData(
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(
@@ -227,6 +240,54 @@ class _OfflineProgramAppState extends State<OfflineProgramApp> {
               onProfileChanged: _refreshProfile,
               onShopChanged: _refreshProfile,
             ),
+    );
+  }
+}
+
+class _DemoAppWatermark extends StatelessWidget {
+  const _DemoAppWatermark();
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      key: const ValueKey('demo-app-watermark'),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final longestSide = constraints.biggest.longestSide;
+          return ClipRect(
+            child: Center(
+              child: Transform.rotate(
+                angle: -0.42,
+                child: Container(
+                  width: longestSide * 1.4,
+                  padding: const EdgeInsets.symmetric(vertical: 18),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFDC2626).withValues(alpha: 0.045),
+                    border: Border.symmetric(
+                      horizontal: BorderSide(
+                        color: const Color(0xFFDC2626).withValues(alpha: 0.16),
+                        width: 2,
+                      ),
+                    ),
+                  ),
+                  child: Text(
+                    'DEMO - ใช้ทดสอบเท่านั้น',
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    style: GoogleFonts.googleSans(
+                      color: const Color(0xFFDC2626).withValues(alpha: 0.22),
+                      fontSize: 58,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0,
+                      decoration: TextDecoration.none,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 }

@@ -72,11 +72,11 @@ class _UserCrudPageState extends State<UserCrudPage> {
     _showMessage('ลบผู้ใช้แล้ว');
   }
 
-  void _showMessage(String message) {
+  void _showMessage(String message, {_ToastType type = _ToastType.success}) {
     if (!mounted) {
       return;
     }
-    _showToast(context, message);
+    _showToast(context, message, type: type);
   }
 
   Future<void> _openUserForm([User? user]) async {
@@ -364,9 +364,9 @@ class _UserFormDialogState extends State<_UserFormDialog> {
         Navigator.pop(context, true);
       }
     } on AuthException catch (error) {
-      _showMessage(error.message);
+      _showMessage(error.message, type: _ToastType.warning);
     } catch (_) {
-      _showMessage('ไม่สามารถบันทึกผู้ใช้ได้');
+      _showMessage('ไม่สามารถบันทึกผู้ใช้ได้', type: _ToastType.error);
     } finally {
       if (mounted) {
         setState(() => _saving = false);
@@ -374,11 +374,11 @@ class _UserFormDialogState extends State<_UserFormDialog> {
     }
   }
 
-  void _showMessage(String message) {
+  void _showMessage(String message, {_ToastType type = _ToastType.success}) {
     if (!mounted) {
       return;
     }
-    _showToast(context, message);
+    _showToast(context, message, type: type);
   }
 
   String? _required(String? value) {

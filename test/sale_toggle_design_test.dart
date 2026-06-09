@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:offline_desktop_program/main.dart';
+import 'package:offline_desktop_program/src/services/auth_service.dart';
 
 void main() {
   testWidgets('sale page uses custom icon toggle controls', (tester) async {
@@ -18,13 +19,11 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('สร้างผู้ใช้แรก'));
-    await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextFormField).at(0), 'Admin');
-    await tester.enterText(find.byType(TextFormField).at(1), 'admin');
-    await tester.enterText(find.byType(TextFormField).at(2), 'password');
-    await tester.enterText(find.byType(TextFormField).at(4), 'Admin Shop');
-    await tester.tap(find.text('สร้างบัญชีและเข้าสู่ระบบ'));
+    await tester.enterText(
+      find.byType(TextFormField).at(1),
+      AuthService.defaultAdminPassword,
+    );
+    await tester.tap(find.widgetWithText(FilledButton, 'เข้าสู่ระบบ'));
     await tester.pumpAndSettle();
 
     await tester.tap(find.byKey(const ValueKey('shell-menu-ขาย')));

@@ -248,11 +248,11 @@ class _SalePageState extends State<SalePage> {
   void _addToCart(Product? product) {
     final quantity = _quantity;
     if (product == null) {
-      _showMessage('กรุณาเลือกสินค้า');
+      _showMessage('กรุณาเลือกสินค้า', type: _ToastType.warning);
       return;
     }
     if (quantity == null || quantity <= 0) {
-      _showMessage('จำนวนสินค้าต้องมากกว่า 0');
+      _showMessage('จำนวนสินค้าต้องมากกว่า 0', type: _ToastType.warning);
       return;
     }
 
@@ -276,7 +276,7 @@ class _SalePageState extends State<SalePage> {
 
   void _updateCartQuantity(Product product, double quantity) {
     if (quantity <= 0 || quantity.isNaN || quantity.isInfinite) {
-      _showMessage('จำนวนสินค้าต้องมากกว่า 0');
+      _showMessage('จำนวนสินค้าต้องมากกว่า 0', type: _ToastType.warning);
       return;
     }
     final nextCartItems = [..._cartItems];
@@ -397,11 +397,11 @@ class _SalePageState extends State<SalePage> {
     final downPaymentInputValue = _downPaymentInputValue;
     final downPaymentAmount = _downPaymentAmount;
     if (customer == null) {
-      _showMessage('กรุณาเลือกลูกค้า');
+      _showMessage('กรุณาเลือกลูกค้า', type: _ToastType.warning);
       return;
     }
     if (_cartItems.isEmpty) {
-      _showMessage('กรุณาเพิ่มรายการสินค้า');
+      _showMessage('กรุณาเพิ่มรายการสินค้า', type: _ToastType.warning);
       return;
     }
     if (downPaymentInputValue == null || downPaymentInputValue < 0) {
@@ -409,20 +409,24 @@ class _SalePageState extends State<SalePage> {
         _downPaymentInputMode == _DownPaymentInputMode.percent
             ? 'เปอร์เซ็นต์เงินดาวน์ต้องอยู่ระหว่าง 0-100'
             : 'ยอดเงินดาวน์ต้องมากกว่าหรือเท่ากับ 0',
+        type: _ToastType.warning,
       );
       return;
     }
     if (_downPaymentInputMode == _DownPaymentInputMode.percent &&
         downPaymentInputValue > 100) {
-      _showMessage('เปอร์เซ็นต์เงินดาวน์ต้องอยู่ระหว่าง 0-100');
+      _showMessage(
+        'เปอร์เซ็นต์เงินดาวน์ต้องอยู่ระหว่าง 0-100',
+        type: _ToastType.warning,
+      );
       return;
     }
     if (downPaymentAmount == null || downPaymentAmount < 0) {
-      _showMessage('ยอดเงินดาวน์ไม่ถูกต้อง');
+      _showMessage('ยอดเงินดาวน์ไม่ถูกต้อง', type: _ToastType.warning);
       return;
     }
     if (_installmentCount < 1 || _installmentCount > 10) {
-      _showMessage('จำนวนงวดต้องอยู่ระหว่าง 1-10');
+      _showMessage('จำนวนงวดต้องอยู่ระหว่าง 1-10', type: _ToastType.warning);
       return;
     }
 
@@ -470,9 +474,9 @@ class _SalePageState extends State<SalePage> {
         widget.onSaleCreated(sale);
       }
     } on SaleException catch (error) {
-      _showMessage(error.message);
+      _showMessage(error.message, type: _ToastType.warning);
     } catch (_) {
-      _showMessage('ไม่สามารถบันทึกการขายได้');
+      _showMessage('ไม่สามารถบันทึกการขายได้', type: _ToastType.error);
     } finally {
       if (mounted) {
         _saving = false;
@@ -480,11 +484,11 @@ class _SalePageState extends State<SalePage> {
     }
   }
 
-  void _showMessage(String message) {
+  void _showMessage(String message, {_ToastType type = _ToastType.success}) {
     if (!mounted) {
       return;
     }
-    _showToast(context, message);
+    _showToast(context, message, type: type);
   }
 
   @override
@@ -926,7 +930,7 @@ class _SaleConfirmationDialog extends StatelessWidget {
                   FilledButton.icon(
                     onPressed: () => Navigator.of(context).pop(true),
                     icon: const Icon(SolarIconsOutline.checkCircle),
-                    label: const Text('Submit'),
+                    label: const Text('บันทึก'),
                   ),
                 ],
               ),

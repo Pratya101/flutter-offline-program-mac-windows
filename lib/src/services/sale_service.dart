@@ -171,7 +171,6 @@ class SaleService {
     );
 
     return _database.createSale(
-      saleNumber: _generateSaleNumber(),
       customerId: payload.customer.id,
       customerName: payload.customer.name,
       vatOption: payload.vatOption.storageValue,
@@ -356,14 +355,6 @@ extension SaleVatOptionLabel on SaleVatOption {
   }
 }
 
-String _generateSaleNumber() {
-  final now = DateTime.now();
-  final date =
-      '${now.year}${_twoDigits(now.month)}${_twoDigits(now.day)}${_twoDigits(now.hour)}${_twoDigits(now.minute)}${_twoDigits(now.second)}';
-  final suffix = (now.microsecond % 10000).toString().padLeft(4, '0');
-  return 'SALE-$date-$suffix';
-}
-
 double _roundMoney(double value) {
   return (value * 100).roundToDouble() / 100;
 }
@@ -372,5 +363,3 @@ DateTime _dateOnly(DateTime value) {
   final local = value.toLocal();
   return DateTime(local.year, local.month, local.day);
 }
-
-String _twoDigits(int value) => value.toString().padLeft(2, '0');

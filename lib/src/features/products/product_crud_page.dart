@@ -77,11 +77,11 @@ class _ProductCrudPageState extends State<ProductCrudPage> {
     _showMessage('ลบสินค้าแล้ว');
   }
 
-  void _showMessage(String message) {
+  void _showMessage(String message, {_ToastType type = _ToastType.success}) {
     if (!mounted) {
       return;
     }
-    _showToast(context, message);
+    _showToast(context, message, type: type);
   }
 
   List<Product> _filterProducts(List<Product> products) {
@@ -360,9 +360,9 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
         Navigator.pop(context, savedProduct);
       }
     } on ProductException catch (error) {
-      _showMessage(error.message);
+      _showMessage(error.message, type: _ToastType.warning);
     } catch (_) {
-      _showMessage('ไม่สามารถบันทึกสินค้าได้');
+      _showMessage('ไม่สามารถบันทึกสินค้าได้', type: _ToastType.error);
     } finally {
       if (mounted) {
         setState(() => _saving = false);
@@ -370,11 +370,11 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
     }
   }
 
-  void _showMessage(String message) {
+  void _showMessage(String message, {_ToastType type = _ToastType.success}) {
     if (!mounted) {
       return;
     }
-    _showToast(context, message);
+    _showToast(context, message, type: type);
   }
 
   String? _requiredName(String? value) {

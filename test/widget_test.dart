@@ -71,6 +71,7 @@ void main() {
       'ติดตาม',
       'สินค้า',
       'ลูกค้า',
+      'ข้อมูลร้าน',
       'ผู้ใช้งาน',
     ];
 
@@ -95,7 +96,37 @@ void main() {
     await database.close();
   });
 
-  testWidgets('creates first user and shows profile', (tester) async {
+  testWidgets('demo license renders an app-wide watermark overlay', (
+    tester,
+  ) async {
+    final database = createInMemoryDatabaseForTests();
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1280, 900);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      OfflineProgramApp(
+        database: database,
+        databasePath: Future.value('memory://offline_desktop_program.sqlite'),
+        licenseService: LicenseService.demo(
+          customerName: 'Demo Customer',
+          expiresAt: DateTime(2026, 6, 23),
+          now: () => DateTime(2026, 6, 9),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.byKey(const ValueKey('demo-app-watermark')), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, 'เข้าสู่ระบบ'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+  });
+
+  testWidgets('logs in with default admin and shows profile', (tester) async {
     final database = createInMemoryDatabaseForTests();
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(1280, 900);
@@ -113,30 +144,27 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
 
     expect(find.widgetWithText(FilledButton, 'เข้าสู่ระบบ'), findsOneWidget);
+    expect(find.text('สร้างผู้ใช้แรก'), findsNothing);
 
-    await tester.tap(find.text('สร้างผู้ใช้แรก'));
-    await tester.pumpAndSettle();
-
-    await tester.enterText(find.byType(TextFormField).at(0), 'Alice Admin');
-    await tester.enterText(find.byType(TextFormField).at(1), 'alice');
-    await tester.enterText(find.byType(TextFormField).at(2), 'secret123');
-    await tester.enterText(find.byType(TextFormField).at(3), '0812345678');
-    await tester.enterText(find.byType(TextFormField).at(4), 'Alice Steel');
     await tester.enterText(
-      find.byType(TextFormField).at(5),
-      'จำหน่ายสินค้าเหล็กและบริการจัดส่ง',
+      find.byType(TextFormField).at(1),
+      AuthService.defaultAdminPassword,
     );
-    await tester.enterText(find.byType(TextFormField).at(6), '020000001');
-    await tester.enterText(find.byType(TextFormField).at(7), '0105566000000');
-    await tester.enterText(find.byType(TextFormField).at(8), '99 Steel Road');
-    await tester.tap(find.text('สร้างบัญชีและเข้าสู่ระบบ'));
+    await tester.tap(find.widgetWithText(FilledButton, 'เข้าสู่ระบบ'));
     await tester.pumpAndSettle();
 
     expect(find.byKey(const ValueKey('shell-menu-ขาย')), findsOneWidget);
     expect(find.text('ขาย'), findsWidgets);
     expect(find.text('ค้นหาลูกค้า'), findsOneWidget);
-    expect(find.text('Alice Admin'), findsWidgets);
-    expect(find.text('Alice Steel'), findsWidgets);
+    expect(find.text(AuthService.defaultAdminFullName), findsWidgets);
+    expect(find.text('ร้านของฉัน'), findsWidgets);
+
+    await tester.tap(find.byKey(const ValueKey('shell-menu-ข้อมูลร้าน')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('ข้อมูลร้าน'), findsWidgets);
+    expect(find.widgetWithText(FilledButton, 'แก้ไขร้าน'), findsOneWidget);
+    expect(find.text('ชื่อร้าน'), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('shell-menu-ลูกค้า')));
     await tester.pumpAndSettle();
@@ -492,7 +520,7 @@ void main() {
     expect(find.text('ข้อมูลลูกค้า'), findsWidgets);
     expect(find.text('รายการสินค้า'), findsWidgets);
     expect(find.text('สรุปราคา'), findsOneWidget);
-    await tester.tap(find.widgetWithText(FilledButton, 'Submit'));
+    await tester.tap(find.widgetWithText(FilledButton, 'บันทึก'));
     await tester.pumpAndSettle();
     expect(find.text('รายละเอียด Order'), findsOneWidget);
 
@@ -501,7 +529,7 @@ void main() {
 
     expect(find.byType(DataTable), findsOneWidget);
     expect(find.widgetWithText(FilledButton, 'เพิ่มผู้ใช้'), findsOneWidget);
-    expect(find.text('Alice Admin'), findsWidgets);
+    expect(find.text(AuthService.defaultAdminFullName), findsWidgets);
 
     await tester.pump(const Duration(seconds: 3));
     await tester.pumpWidget(const SizedBox.shrink());
@@ -547,6 +575,25 @@ void main() {
 
     await authService.deleteUser(created.id);
     expect(authService.getProfile(created.id), throwsA(isA<AuthException>()));
+
+    await database.close();
+  });
+
+  test('auth service creates default admin for empty databases', () async {
+    final database = createInMemoryDatabaseForTests();
+    final authService = AuthService(database);
+
+    final user = await authService.login(
+      username: AuthService.defaultAdminUsername,
+      password: AuthService.defaultAdminPassword,
+    );
+
+    expect(user.fullName, AuthService.defaultAdminFullName);
+    expect(user.username, AuthService.defaultAdminUsername);
+
+    final users = await database.watchActiveUsers().first;
+    expect(users, hasLength(1));
+    expect(users.single.id, user.id);
 
     await database.close();
   });
@@ -854,7 +901,7 @@ void main() {
     );
     final saleItems = await database.getSaleItems(sale.id);
 
-    expect(sale.saleNumber, startsWith('SALE-'));
+    expect(sale.saleNumber, matches(RegExp(r'^OR\d{4}-0001$')));
     expect(sale.customerName, 'ลูกค้าทดสอบ');
     expect(sale.grandTotal, 17000);
     expect(sale.downPaymentPercent, 20);
@@ -867,6 +914,18 @@ void main() {
       'สินค้าเสริม',
     ]);
     expect(saleItems.map((item) => item.quantity), [1, 2]);
+
+    final nextSale = await saleService.createSale(
+      SalePayload(
+        customer: customer,
+        items: [SaleItemPayload(product: product, quantity: 1)],
+        vatOption: SaleVatOption.none,
+        downPaymentAmount: 0,
+        installmentCount: 1,
+        firstDueDate: _testFirstDueDate,
+      ),
+    );
+    expect(nextSale.saleNumber, '${sale.saleNumber.substring(0, 7)}0002');
 
     expect(
       saleService.createSale(
@@ -1050,18 +1109,32 @@ void main() {
       expect(html, contains('DEMO - ใช้ทดสอบเท่านั้น'));
       expect(html, contains('contract-print-header'));
       expect(html, contains('display: table-header-group'));
+      expect(html, contains('store-title-strip'));
+      expect(html, contains('store-detail-grid'));
       expect(html, contains('ร้านทดสอบไดนามิก'));
       expect(html, contains('จำหน่ายเฟอร์นิเจอร์สำนักงานและบริการจัดส่ง'));
       expect(html, contains('02-222-3333'));
       expect(html, contains('88 ถนนทดสอบ'));
-      expect(html, contains('เลขประจำตัวประชาชน 1234567890123'));
-      expect(html, contains('เลขประจำตัวประชาชน 0105566000000'));
+      expect(html, contains('เลขที่ประจำประชาชน 1234567890123'));
+      expect(html, isNot(contains('เลขที่ประจำตัวผู้เสียภาษี 1234567890123')));
+      expect(html, contains('เลขที่ประจำตัวผู้เสียภาษี'));
+      expect(html, contains('<span class="detail-value">0105566000000</span>'));
+      expect(html, isNot(contains('เลขประจำตัวประชาชน')));
       expect(html, isNot(contains('เลขประจำตัว/เลขผู้เสียภาษี')));
-      expect(html, isNot(contains('เลขประจำตัวผู้เสียภาษี')));
       expect(html, isNot(contains('ร้าน ดี ดี เฟอร์นิเจอร์')));
       expect(html, contains('ลูกค้าสัญญา'));
       expect(html, contains('ตู้เหล็ก'));
+      expect(html, contains('<th style="width: 9%">ลำดับ</th>'));
+      expect(html, contains('<th>รายการ</th>'));
+      expect(html, contains('<th style="width: 13%">จำนวน</th>'));
+      expect(html, contains('<th style="width: 18%">ราคา</th>'));
+      expect(html, contains('<td class="center">1</td>'));
       expect(html, contains('ตารางการชำระเงิน'));
+      expect(html, isNot(contains('<th style="width: 12%">จำนวน</th>')));
+      expect(html, isNot(contains('<th style="width: 22%">วันครบกำหนด</th>')));
+      expect(html, isNot(contains('<th style="width: 22%">ยอดงวด</th>')));
+      expect(html, isNot(contains('<th style="width: 22%">คงเหลือ</th>')));
+      expect(html, contains('border-bottom: 2px dashed #475569'));
       expect(html, contains('วันที่จ่าย'));
       expect(html, contains('จำนวนเงิน'));
       expect(html, contains('ผู้รับเงิน'));

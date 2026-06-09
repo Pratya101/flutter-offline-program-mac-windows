@@ -78,11 +78,11 @@ class _CustomerCrudPageState extends State<CustomerCrudPage> {
     _showMessage('ลบลูกค้าแล้ว');
   }
 
-  void _showMessage(String message) {
+  void _showMessage(String message, {_ToastType type = _ToastType.success}) {
     if (!mounted) {
       return;
     }
-    _showToast(context, message);
+    _showToast(context, message, type: type);
   }
 
   List<Customer> _filterCustomers(List<Customer> customers) {
@@ -483,9 +483,9 @@ class _CustomerFormDialogState extends State<_CustomerFormDialog> {
         Navigator.pop(context, savedCustomer);
       }
     } on CustomerException catch (error) {
-      _showMessage(error.message);
+      _showMessage(error.message, type: _ToastType.warning);
     } catch (_) {
-      _showMessage('ไม่สามารถบันทึกลูกค้าได้');
+      _showMessage('ไม่สามารถบันทึกลูกค้าได้', type: _ToastType.error);
     } finally {
       if (mounted) {
         setState(() => _saving = false);
@@ -493,11 +493,11 @@ class _CustomerFormDialogState extends State<_CustomerFormDialog> {
     }
   }
 
-  void _showMessage(String message) {
+  void _showMessage(String message, {_ToastType type = _ToastType.success}) {
     if (!mounted) {
       return;
     }
-    _showToast(context, message);
+    _showToast(context, message, type: type);
   }
 
   String? _requiredName(String? value) {

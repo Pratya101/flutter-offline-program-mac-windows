@@ -17,7 +17,32 @@ class AuthException implements Exception {
 class AuthService {
   const AuthService(this._database);
 
+  static const defaultAdminFullName = 'ผู้ดูแลระบบ';
+  static const defaultAdminUsername = 'admin';
+  static const defaultAdminPassword = 'systemadministrator';
+
   final AppDatabase _database;
+
+  Future<void> ensureDefaultAdminUser() async {
+    if (await _database.hasActiveUsers()) {
+      return;
+    }
+
+    await _database.transaction(() async {
+      if (await _database.hasActiveUsers()) {
+        return;
+      }
+
+      final salt = _createSalt();
+      await _database.upsertBootstrapUser(
+        fullName: defaultAdminFullName,
+        username: defaultAdminUsername,
+        passwordHash: _hashPassword(defaultAdminPassword, salt),
+        passwordSalt: salt,
+      );
+      await _database.getOrCreatePrimaryShop();
+    });
+  }
 
   Future<User> register({
     required String fullName,
@@ -74,6 +99,7 @@ class AuthService {
   }) async {
     _validateRequired(username, 'ชื่อผู้ใช้');
     _validateRequired(password, 'รหัสผ่าน');
+    await ensureDefaultAdminUser();
 
     final user = await _database.findActiveUserByUsername(username);
     if (user == null) {

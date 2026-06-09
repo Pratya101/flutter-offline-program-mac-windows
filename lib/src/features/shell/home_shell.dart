@@ -44,7 +44,7 @@ class _HomeShellState extends State<HomeShell> {
     try {
       widget.licenseService.assertCanExportBackup();
     } on LicenseException catch (error) {
-      _showMessage(error.message);
+      _showMessage(error.message, type: _ToastType.warning);
       return;
     }
 
@@ -59,11 +59,11 @@ class _HomeShellState extends State<HomeShell> {
     }
   }
 
-  void _showMessage(String message) {
+  void _showMessage(String message, {_ToastType type = _ToastType.success}) {
     if (!mounted) {
       return;
     }
-    _showToast(context, message);
+    _showToast(context, message, type: type);
   }
 
   void _openCreatedSaleDetail(Sale sale) {
@@ -116,6 +116,11 @@ class _HomeShellState extends State<HomeShell> {
           licenseService: widget.licenseService,
         ),
       ),
+      ShopSettingsPage(
+        shop: widget.shop,
+        authService: widget.authService,
+        onShopChanged: widget.onShopChanged,
+      ),
       UserCrudPage(
         database: widget.database,
         authService: widget.authService,
@@ -148,20 +153,6 @@ class _HomeShellState extends State<HomeShell> {
               ),
             ),
             const SizedBox(width: 10),
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: FilledButton.icon(
-                onPressed: _exporting ? null : _exportBackup,
-                icon: _exporting
-                    ? const SizedBox.square(
-                        dimension: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(SolarIconsOutline.archive),
-                label: const Text('สำรองข้อมูล'),
-              ),
-            ),
-            const SizedBox(width: 8),
             _ShellAccountSummary(profile: widget.profile, shop: widget.shop),
             const SizedBox(width: 6),
             IconButton(
@@ -184,6 +175,17 @@ class _HomeShellState extends State<HomeShell> {
               padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
               child: Row(
                 children: [
+                  FilledButton.icon(
+                    onPressed: _exporting ? null : _exportBackup,
+                    icon: _exporting
+                        ? const SizedBox.square(
+                            dimension: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(SolarIconsOutline.archive),
+                    label: const Text('สำรองข้อมูล'),
+                  ),
+                  const SizedBox(width: 14),
                   const Icon(SolarIconsOutline.database, size: 18),
                   const SizedBox(width: 8),
                   Expanded(
@@ -228,6 +230,11 @@ const _shellMenuDestinations = [
     label: 'ลูกค้า',
     icon: SolarIconsOutline.userSpeakRounded,
     selectedIcon: SolarIconsBold.userSpeakRounded,
+  ),
+  _ShellMenuDestination(
+    label: 'ข้อมูลร้าน',
+    icon: SolarIconsOutline.shop,
+    selectedIcon: SolarIconsBold.shop,
   ),
   _ShellMenuDestination(
     label: 'ผู้ใช้งาน',

@@ -99,6 +99,56 @@ class _WelcomePageState extends State<WelcomePage> {
   }
 }
 
+class ShopSettingsPage extends StatefulWidget {
+  const ShopSettingsPage({
+    super.key,
+    required this.shop,
+    required this.authService,
+    required this.onShopChanged,
+  });
+
+  final Shop shop;
+  final AuthService authService;
+  final Future<void> Function() onShopChanged;
+
+  @override
+  State<ShopSettingsPage> createState() => _ShopSettingsPageState();
+}
+
+class _ShopSettingsPageState extends State<ShopSettingsPage> {
+  Future<void> _openShopForm() async {
+    final saved = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) =>
+          _ShopFormDialog(authService: widget.authService, shop: widget.shop),
+    );
+
+    if (saved != true) {
+      return;
+    }
+    await widget.onShopChanged();
+    if (mounted) {
+      _showToast(context, 'อัปเดตข้อมูลร้านแล้ว');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: ListView(
+        padding: const EdgeInsets.all(24),
+        children: [
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 720),
+            child: _ShopCard(shop: widget.shop, onEdit: _openShopForm),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ProfileCard extends StatelessWidget {
   const _ProfileCard({
     required this.profile,
@@ -261,11 +311,15 @@ class _ShopFormDialogState extends State<_ShopFormDialog> {
       }
     } on AuthException catch (error) {
       if (mounted) {
-        _showToast(context, error.message);
+        _showToast(context, error.message, type: _ToastType.warning);
       }
     } catch (_) {
       if (mounted) {
-        _showToast(context, 'ไม่สามารถบันทึกข้อมูลร้านได้');
+        _showToast(
+          context,
+          'ไม่สามารถบันทึกข้อมูลร้านได้',
+          type: _ToastType.error,
+        );
       }
     } finally {
       if (mounted) {

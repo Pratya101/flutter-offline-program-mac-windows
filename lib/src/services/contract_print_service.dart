@@ -7,10 +7,8 @@ import '../database/database_connection.dart';
 import 'license_service.dart';
 
 class SaleContractPrintService {
-  SaleContractPrintService(
-    this._database, {
-    LicenseService? licenseService,
-  }) : _licenseService = licenseService ?? LicenseService.fromEnvironment();
+  SaleContractPrintService(this._database, {LicenseService? licenseService})
+    : _licenseService = licenseService ?? LicenseService.fromEnvironment();
 
   final AppDatabase _database;
   final LicenseService _licenseService;
@@ -32,7 +30,7 @@ class SaleContractPrintService {
     final installments = await _database.getSaleInstallments(sale.id);
     final paymentLogs = await _database.getSalePaymentLogs(sale.id);
     final paymentRows = _buildPaymentRows(sale, paymentLogs);
-    final shopDescription = _shopDocumentDescription(shop);
+    final shopDetailHtml = _shopDetailHtml(shop);
     final contractIntro = _contractIntroText(
       sale: sale,
       customer: customer,
@@ -53,14 +51,14 @@ class SaleContractPrintService {
   <meta charset="utf-8">
   <title>สัญญาซื้อขาย ${_escapeHtml(sale.saleNumber)}</title>
   <style>
-    @page { size: A4; margin: 10mm; }
+    @page { size: A4; margin: 8mm; }
     * { box-sizing: border-box; }
     body {
       margin: 0;
       color: #1f2937;
       font-family: "Sarabun", "Noto Sans Thai", Tahoma, Arial, sans-serif;
-      font-size: 12px;
-      line-height: 1.25;
+      font-size: 11px;
+      line-height: 1.18;
       background: #fff;
     }
     .document {
@@ -83,32 +81,71 @@ class SaleContractPrintService {
       vertical-align: top;
     }
     .contract-print-header-cell {
-      padding: 7mm 7mm 0;
+      padding: 5mm 6mm 0;
     }
     .contract-print-body-cell {
-      padding: 0 7mm 7mm;
+      padding: 0 6mm 5mm;
     }
     .store-box {
-      border: 1px solid #64748b;
-      border-radius: 6px;
+      overflow: hidden;
+      border: 1.2px solid #1e3a8a;
+      border-radius: 8px;
       text-align: center;
-      padding: 7px 10px 8px;
-      margin-bottom: 10px;
+      padding: 0;
+      margin-bottom: 7px;
+      background: #ffffff;
     }
     .title {
-      margin: 0 0 2px;
-      font-size: 18px;
+      margin: 0;
+      color: #0f172a;
+      font-size: 16px;
       font-weight: 800;
-      text-decoration: underline;
+    }
+    .store-title-strip {
+      padding: 3px 10px 4px;
+      border-bottom: 1px solid #bfdbfe;
+      background: #eff6ff;
+    }
+    .store-brand-panel {
+      padding: 4px 10px 5px;
     }
     .store-name {
       margin: 0;
-      color: #1d4ed8;
-      font-size: 25px;
+      color: #1e40af;
+      font-size: 23px;
       font-weight: 900;
+      line-height: 1;
     }
-    .store-detail {
-      margin: 2px 0 0;
+    .store-detail-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 1px;
+      border-top: 1px solid #dbeafe;
+      background: #e2e8f0;
+      text-align: left;
+    }
+    .store-detail-item {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: 4px;
+      align-items: start;
+      min-height: 18px;
+      padding: 3px 8px;
+      background: #f8fafc;
+      font-size: 9px;
+      line-height: 1.15;
+      overflow-wrap: anywhere;
+    }
+    .store-detail-item--wide {
+      grid-column: 1 / -1;
+    }
+    .detail-label {
+      color: #1e40af;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+    .detail-value {
+      color: #0f172a;
       font-weight: 700;
       overflow-wrap: anywhere;
     }
@@ -117,7 +154,7 @@ class SaleContractPrintService {
       grid-template-columns: 72px minmax(0, 1fr) 64px minmax(0, 1fr);
       gap: 8px;
       align-items: end;
-      margin-bottom: 8px;
+      margin-bottom: 5px;
     }
     .label { font-weight: 700; color: #334155; }
     .line {
@@ -128,27 +165,27 @@ class SaleContractPrintService {
     }
     .body-text,
     .contract-intro {
-      margin: 7px 0;
+      margin: 5px 0;
       text-align: justify;
       overflow-wrap: anywhere;
     }
     .contract-terms {
-      margin: 6px 0 8px;
+      margin: 4px 0 6px;
       padding-left: 18px;
     }
     .contract-terms li {
-      margin: 3px 0;
+      margin: 2px 0;
       text-align: justify;
       overflow-wrap: anywhere;
     }
     table {
       width: 100%;
       border-collapse: collapse;
-      margin: 6px 0 9px;
+      margin: 4px 0 6px;
     }
     th, td {
       border: 1px solid #64748b;
-      padding: 3px 5px;
+      padding: 2px 4px;
       vertical-align: top;
     }
     th {
@@ -161,9 +198,9 @@ class SaleContractPrintService {
     .payment-signature-grid {
       display: grid;
       grid-template-columns: minmax(320px, 1fr) minmax(230px, 0.72fr);
-      gap: 16px;
+      gap: 12px;
       align-items: start;
-      margin-top: 10px;
+      margin-top: 7px;
     }
     .payment-table {
       margin: 0;
@@ -180,10 +217,10 @@ class SaleContractPrintService {
       grid-template-columns: 44px minmax(0, 1fr) 96px;
       column-gap: 10px;
       align-items: end;
-      min-height: 32px;
+      min-height: 27px;
     }
     .signature-row + .signature-row {
-      margin-top: 12px;
+      margin-top: 8px;
     }
     .signature-label {
       font-weight: 700;
@@ -191,7 +228,7 @@ class SaleContractPrintService {
     }
     .signature-fill {
       height: 18px;
-      border-bottom: 2px solid #475569;
+      border-bottom: 2px dashed #475569;
     }
     .muted { color: #64748b; }
     .demo-watermark {
@@ -232,9 +269,15 @@ class SaleContractPrintService {
         <td class="contract-print-header-cell">
           ${_demoNoticeHtml(_licenseService.documentWatermarkText)}
           <section class="store-box">
-            <h1 class="title">หนังสือสัญญาซื้อขาย</h1>
-            <p class="store-name">${_escapeHtml(shop.name)}</p>
-            <p class="store-detail">${_escapeHtml(shopDescription)}</p>
+            <div class="store-title-strip">
+              <h1 class="title">หนังสือสัญญาซื้อขาย</h1>
+            </div>
+            <div class="store-brand-panel">
+              <p class="store-name">${_escapeHtml(shop.name)}</p>
+            </div>
+            <div class="store-detail-grid">
+              $shopDetailHtml
+            </div>
           </section>
         </td>
       </tr>
@@ -272,14 +315,15 @@ class SaleContractPrintService {
     <table>
       <thead>
         <tr>
-          <th style="width: 12%">จำนวน</th>
+          <th style="width: 9%">ลำดับ</th>
           <th>รายการ</th>
+          <th style="width: 13%">จำนวน</th>
           <th style="width: 18%">ราคา</th>
           <th style="width: 18%">จำนวนเงิน</th>
         </tr>
       </thead>
       <tbody>
-        ${items.map(_itemRowHtml).join('\n')}
+        ${items.indexed.map((entry) => _itemRowHtml(entry.$2, entry.$1 + 1)).join('\n')}
       </tbody>
     </table>
 
@@ -289,21 +333,6 @@ class SaleContractPrintService {
       ยอดคงเหลือ <strong>${_money(sale.remainingAmount)}</strong> บาท
       โดยแบ่งชำระ <strong>${installments.length}</strong> งวด
     </p>
-
-    <table>
-      <thead>
-        <tr>
-          <th style="width: 12%">งวด</th>
-          <th style="width: 22%">วันครบกำหนด</th>
-          <th style="width: 22%">ยอดงวด</th>
-          <th style="width: 22%">จ่ายแล้ว</th>
-          <th style="width: 22%">คงเหลือ</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${installments.map(_installmentRowHtml).join('\n')}
-      </tbody>
-    </table>
 
     <div class="payment-signature-grid">
       <table class="payment-table">
@@ -452,28 +481,14 @@ String _demoNoticeHtml(String? text) {
   return '<div class="demo-print-notice">${_escapeHtml(text)}</div>';
 }
 
-String _itemRowHtml(SaleItem item) {
+String _itemRowHtml(SaleItem item, int index) {
   return '''
 <tr>
-  <td class="center">${_money(item.quantity)}</td>
+  <td class="center">$index</td>
   <td>${_escapeHtml(item.productName)}</td>
+  <td class="center">${_money(item.quantity)}</td>
   <td class="right">${_money(item.unitPrice)}</td>
   <td class="right">${_money(item.lineTotal)}</td>
-</tr>
-''';
-}
-
-String _installmentRowHtml(SaleInstallment installment) {
-  final outstanding = _roundMoney(
-    installment.dueAmount - installment.paidAmount,
-  );
-  return '''
-<tr>
-  <td class="center">${installment.installmentNumber}</td>
-  <td class="center">${_formatThaiDate(installment.dueDate)}</td>
-  <td class="right">${_money(installment.dueAmount)}</td>
-  <td class="right">${_money(installment.paidAmount)}</td>
-  <td class="right">${_money(outstanding < 0 ? 0 : outstanding)}</td>
 </tr>
 ''';
 }
@@ -504,28 +519,42 @@ String _customerAddress(Customer? customer) {
   return address.isEmpty ? '-' : address;
 }
 
-String _shopDocumentDescription(Shop shop) {
+String _shopDetailHtml(Shop shop) {
   final details = <String>[];
   final customDescription = shop.description?.trim();
   final address = shop.address?.trim();
   final taxId = shop.taxId?.trim();
   final phone = shop.phone?.trim();
   if (customDescription != null && customDescription.isNotEmpty) {
-    details.add(customDescription);
-  }
-  if (address != null && address.isNotEmpty) {
-    details.add(address);
-  }
-  if (taxId != null && taxId.isNotEmpty) {
-    details.add('เลขประจำตัวประชาชน $taxId');
+    details.add(_shopDetailItemHtml('บริการ', customDescription, wide: true));
   }
   if (phone != null && phone.isNotEmpty) {
-    details.add('โทร. $phone');
+    details.add(_shopDetailItemHtml('โทร', phone));
+  }
+  if (taxId != null && taxId.isNotEmpty) {
+    details.add(_shopDetailItemHtml('เลขที่ประจำตัวผู้เสียภาษี', taxId));
+  }
+  if (address != null && address.isNotEmpty) {
+    details.add(_shopDetailItemHtml('ที่อยู่', address, wide: true));
   }
   if (details.isEmpty) {
-    return 'เอกสารสัญญาซื้อขายของ ${shop.name}';
+    return _shopDetailItemHtml(
+      'เอกสาร',
+      'สัญญาซื้อขายของ ${shop.name}',
+      wide: true,
+    );
   }
-  return details.join(' ');
+  return details.join('\n');
+}
+
+String _shopDetailItemHtml(String label, String value, {bool wide = false}) {
+  final wideClass = wide ? ' store-detail-item--wide' : '';
+  return '''
+<div class="store-detail-item$wideClass">
+  <span class="detail-label">${_escapeHtml(label)}</span>
+  <span class="detail-value">${_escapeHtml(value)}</span>
+</div>
+''';
 }
 
 String _contractIntroText({
@@ -607,7 +636,7 @@ String _customerIdentityText(Customer? customer) {
   if (taxId == null || taxId.isEmpty) {
     return '';
   }
-  return ' เลขประจำตัวประชาชน $taxId';
+  return ' เลขที่ประจำประชาชน $taxId';
 }
 
 String _customerPhoneText(Customer? customer) {
@@ -636,10 +665,6 @@ String _money(double value) {
 String _formatThaiDate(DateTime value) {
   final local = value.toLocal();
   return '${local.day}/${local.month}/${local.year + 543}';
-}
-
-double _roundMoney(double value) {
-  return (value * 100).roundToDouble() / 100;
 }
 
 Future<void> _openFile(File file) async {

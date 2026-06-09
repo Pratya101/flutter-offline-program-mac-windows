@@ -122,7 +122,7 @@ class _SaleListPageState extends State<SaleListPage> {
       if (!mounted) {
         return;
       }
-      _showToast(context, error.message);
+      _showToast(context, error.message, type: _ToastType.warning);
     } finally {
       if (mounted) {
         setState(() => _recordingPayment = false);
@@ -150,7 +150,7 @@ class _SaleListPageState extends State<SaleListPage> {
       if (!mounted) {
         return;
       }
-      _showToast(context, error.message);
+      _showToast(context, error.message, type: _ToastType.warning);
     } finally {
       if (mounted) {
         setState(() => _printingContract = false);
