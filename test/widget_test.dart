@@ -524,6 +524,16 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('รายละเอียด Order'), findsOneWidget);
 
+    await tester.tap(find.byKey(const ValueKey('shell-menu-รายการขาย')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('sale-list-search-field')),
+      findsOneWidget,
+    );
+    expect(find.text('รายละเอียด Order'), findsNothing);
+    expect(find.text('รายการขาย'), findsWidgets);
+
     await tester.tap(find.byKey(const ValueKey('shell-menu-ผู้ใช้งาน')));
     await tester.pumpAndSettle();
 
@@ -1539,6 +1549,28 @@ ORDER BY installment_number
 
     expect(find.text('1 / 10 งวด'), findsOneWidget);
     expect(find.text('รับชำระแล้ว'), findsWidgets);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        debugShowCheckedModeBanner: false,
+        home: Scaffold(
+          body: SaleListPage(
+            database: database,
+            licenseService: LicenseService.full(),
+            saleService: saleService,
+            receiverName: 'Alice Admin',
+            detailResetToken: 1,
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(
+      find.byKey(const ValueKey('sale-list-search-field')),
+      findsOneWidget,
+    );
+    expect(find.text('รายละเอียด Order'), findsNothing);
 
     await tester.pump(const Duration(seconds: 3));
     await tester.pumpWidget(const SizedBox.shrink());

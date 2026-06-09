@@ -8,6 +8,7 @@ class SaleListPage extends StatefulWidget {
     required this.saleService,
     required this.receiverName,
     this.initialSaleId,
+    this.detailResetToken = 0,
   });
 
   final AppDatabase database;
@@ -15,6 +16,7 @@ class SaleListPage extends StatefulWidget {
   final SaleService saleService;
   final String receiverName;
   final String? initialSaleId;
+  final int detailResetToken;
 
   @override
   State<SaleListPage> createState() => _SaleListPageState();
@@ -37,14 +39,18 @@ class _SaleListPageState extends State<SaleListPage> {
     });
     final initialSaleId = widget.initialSaleId;
     if (initialSaleId != null) {
-      _selectedSaleId = initialSaleId;
-      _detailFuture = _loadDetail(initialSaleId);
+      _showDetailById(initialSaleId);
     }
   }
 
   @override
   void didUpdateWidget(covariant SaleListPage oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (widget.detailResetToken != oldWidget.detailResetToken) {
+      _clearDetail();
+      return;
+    }
+
     final initialSaleId = widget.initialSaleId;
     if (initialSaleId != null && initialSaleId != oldWidget.initialSaleId) {
       _openDetailById(initialSaleId);
@@ -63,9 +69,13 @@ class _SaleListPageState extends State<SaleListPage> {
 
   void _openDetailById(String saleId) {
     setState(() {
-      _selectedSaleId = saleId;
-      _detailFuture = _loadDetail(saleId);
+      _showDetailById(saleId);
     });
+  }
+
+  void _showDetailById(String saleId) {
+    _selectedSaleId = saleId;
+    _detailFuture = _loadDetail(saleId);
   }
 
   Future<_SaleOrderDetailData> _loadDetail(String saleId) async {
@@ -89,9 +99,13 @@ class _SaleListPageState extends State<SaleListPage> {
 
   void _closeDetail() {
     setState(() {
-      _selectedSaleId = null;
-      _detailFuture = null;
+      _clearDetail();
     });
+  }
+
+  void _clearDetail() {
+    _selectedSaleId = null;
+    _detailFuture = null;
   }
 
   Future<void> _openPaymentDialog(SaleInstallment installment) async {

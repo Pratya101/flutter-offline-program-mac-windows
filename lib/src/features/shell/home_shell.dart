@@ -33,6 +33,7 @@ class _HomeShellState extends State<HomeShell> {
   var _selectedIndex = 0;
   var _exporting = false;
   String? _saleDetailToOpenId;
+  var _saleListResetToken = 0;
 
   @override
   void initState() {
@@ -73,6 +74,16 @@ class _HomeShellState extends State<HomeShell> {
     });
   }
 
+  void _selectDestination(int value) {
+    setState(() {
+      _selectedIndex = value;
+      if (value == 1) {
+        _saleDetailToOpenId = null;
+        _saleListResetToken++;
+      }
+    });
+  }
+
   String get _currentReceiverName {
     final fullName = widget.profile.fullName.trim();
     return fullName.isEmpty ? widget.profile.username : fullName;
@@ -100,6 +111,7 @@ class _HomeShellState extends State<HomeShell> {
         ),
         receiverName: _currentReceiverName,
         initialSaleId: _saleDetailToOpenId,
+        detailResetToken: _saleListResetToken,
       ),
       TrackingPage(trackingService: TrackingService(widget.database)),
       ProductCrudPage(
@@ -147,9 +159,7 @@ class _HomeShellState extends State<HomeShell> {
               child: _ShellTopMenuBar(
                 destinations: _shellMenuDestinations,
                 selectedIndex: selectedIndex,
-                onDestinationSelected: (value) {
-                  setState(() => _selectedIndex = value);
-                },
+                onDestinationSelected: _selectDestination,
               ),
             ),
             const SizedBox(width: 10),
