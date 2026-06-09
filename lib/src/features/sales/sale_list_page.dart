@@ -4,12 +4,14 @@ class SaleListPage extends StatefulWidget {
   const SaleListPage({
     super.key,
     required this.database,
+    required this.licenseService,
     required this.saleService,
     required this.receiverName,
     this.initialSaleId,
   });
 
   final AppDatabase database;
+  final LicenseService licenseService;
   final SaleService saleService;
   final String receiverName;
   final String? initialSaleId;
@@ -138,6 +140,7 @@ class _SaleListPageState extends State<SaleListPage> {
     try {
       final file = await SaleContractPrintService(
         widget.database,
+        licenseService: widget.licenseService,
       ).printContract(saleId);
       if (!mounted) {
         return;

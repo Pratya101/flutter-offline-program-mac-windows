@@ -5,6 +5,7 @@ class HomeShell extends StatefulWidget {
     super.key,
     required this.database,
     required this.authService,
+    required this.licenseService,
     required this.profile,
     required this.shop,
     required this.databasePath,
@@ -15,6 +16,7 @@ class HomeShell extends StatefulWidget {
 
   final AppDatabase database;
   final AuthService authService;
+  final LicenseService licenseService;
   final User profile;
   final Shop shop;
   final Future<String> databasePath;
@@ -39,6 +41,13 @@ class _HomeShellState extends State<HomeShell> {
   }
 
   Future<void> _exportBackup() async {
+    try {
+      widget.licenseService.assertCanExportBackup();
+    } on LicenseException catch (error) {
+      _showMessage(error.message);
+      return;
+    }
+
     setState(() => _exporting = true);
     try {
       final backup = await _backupService.exportZipBackup();
@@ -74,24 +83,38 @@ class _HomeShellState extends State<HomeShell> {
     final pages = [
       SalePage(
         database: widget.database,
-        saleService: SaleService(widget.database),
+        licenseService: widget.licenseService,
+        saleService: SaleService(
+          widget.database,
+          licenseService: widget.licenseService,
+        ),
         receiverName: _currentReceiverName,
         onSaleCreated: _openCreatedSaleDetail,
       ),
       SaleListPage(
         database: widget.database,
-        saleService: SaleService(widget.database),
+        licenseService: widget.licenseService,
+        saleService: SaleService(
+          widget.database,
+          licenseService: widget.licenseService,
+        ),
         receiverName: _currentReceiverName,
         initialSaleId: _saleDetailToOpenId,
       ),
       TrackingPage(trackingService: TrackingService(widget.database)),
       ProductCrudPage(
         database: widget.database,
-        productService: ProductService(widget.database),
+        productService: ProductService(
+          widget.database,
+          licenseService: widget.licenseService,
+        ),
       ),
       CustomerCrudPage(
         database: widget.database,
-        customerService: CustomerService(widget.database),
+        customerService: CustomerService(
+          widget.database,
+          licenseService: widget.licenseService,
+        ),
       ),
       UserCrudPage(
         database: widget.database,
@@ -110,6 +133,10 @@ class _HomeShellState extends State<HomeShell> {
         title: Row(
           children: [
             const Text('SoftSale Offline'),
+            if (widget.licenseService.snapshot.isDemo) ...[
+              const SizedBox(width: 10),
+              _LicenseStatusPill(licenseService: widget.licenseService),
+            ],
             const SizedBox(width: 16),
             Expanded(
               child: _ShellTopMenuBar(
@@ -219,6 +246,46 @@ class _ShellMenuDestination {
   final String label;
   final IconData icon;
   final IconData selectedIcon;
+}
+
+class _LicenseStatusPill extends StatelessWidget {
+  const _LicenseStatusPill({required this.licenseService});
+
+  final LicenseService licenseService;
+
+  @override
+  Widget build(BuildContext context) {
+    final snapshot = licenseService.snapshot;
+    final expired = snapshot.isExpired(DateTime.now());
+    final colors = expired
+        ? (bg: const Color(0xFFFEE2E2), fg: const Color(0xFF991B1B))
+        : snapshot.isDemo
+        ? (bg: const Color(0xFFFFF7ED), fg: const Color(0xFFC2410C))
+        : (bg: const Color(0xFFE6F4F1), fg: _primaryColor);
+
+    return Tooltip(
+      message: snapshot.isDemo
+          ? 'ตัวทดลอง จำกัดการสร้างข้อมูลและปิดการสำรองข้อมูล'
+          : 'สิทธิ์ใช้งานตัวเต็ม',
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: colors.bg,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: colors.fg.withValues(alpha: 0.24)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          child: Text(
+            licenseService.statusLabel,
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              color: colors.fg,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _ShellTopMenuBar extends StatelessWidget {

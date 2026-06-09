@@ -253,6 +253,17 @@ class AppDatabase extends _$AppDatabase {
     return query.watch();
   }
 
+  Future<int> countActiveCustomers() {
+    final countExpression = customers.id.count();
+    final query = selectOnly(customers)
+      ..addColumns([countExpression])
+      ..where(customers.isDeleted.equals(false));
+
+    return query
+        .map((row) => row.read(countExpression) ?? 0)
+        .getSingle();
+  }
+
   Future<Customer> createCustomer({
     required String name,
     String? nickname,
@@ -374,10 +385,35 @@ class AppDatabase extends _$AppDatabase {
     return query.watch();
   }
 
+  Future<List<Product>> getActiveProducts() {
+    final query = select(products)
+      ..where((table) => table.isDeleted.equals(false))
+      ..orderBy([
+        (table) =>
+            OrderingTerm(expression: table.updatedAt, mode: OrderingMode.desc),
+      ]);
+
+    return query.get();
+  }
+
+  Future<int> countActiveProducts() {
+    final countExpression = products.id.count();
+    final query = selectOnly(products)
+      ..addColumns([countExpression])
+      ..where(products.isDeleted.equals(false));
+
+    return query
+        .map((row) => row.read(countExpression) ?? 0)
+        .getSingle();
+  }
+
   Future<Product?> findActiveProductByCode(String code) {
     final query = select(products)
-      ..where((table) => table.code.equals(_normalizeProductCode(code)))
-      ..where((table) => table.isDeleted.equals(false))
+      ..where(
+        (table) =>
+            table.code.equals(_normalizeProductCode(code)) &
+            table.isDeleted.equals(false),
+      )
       ..limit(1);
 
     return query.getSingleOrNull();
@@ -448,6 +484,17 @@ class AppDatabase extends _$AppDatabase {
       ]);
 
     return query.watch();
+  }
+
+  Future<int> countActiveSales() {
+    final countExpression = sales.id.count();
+    final query = selectOnly(sales)
+      ..addColumns([countExpression])
+      ..where(sales.isDeleted.equals(false));
+
+    return query
+        .map((row) => row.read(countExpression) ?? 0)
+        .getSingle();
   }
 
   Stream<List<SaleListItem>> watchActiveSaleListItems() {

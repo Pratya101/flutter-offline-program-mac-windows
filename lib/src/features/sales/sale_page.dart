@@ -4,12 +4,14 @@ class SalePage extends StatefulWidget {
   const SalePage({
     super.key,
     required this.database,
+    required this.licenseService,
     required this.saleService,
     required this.receiverName,
     required this.onSaleCreated,
   });
 
   final AppDatabase database;
+  final LicenseService licenseService;
   final SaleService saleService;
   final String receiverName;
   final ValueChanged<Sale> onSaleCreated;
@@ -330,7 +332,10 @@ class _SalePageState extends State<SalePage> {
       context: context,
       barrierDismissible: false,
       builder: (context) => _CustomerFormDialog(
-        customerService: CustomerService(widget.database),
+        customerService: CustomerService(
+          widget.database,
+          licenseService: widget.licenseService,
+        ),
         editingCustomer: null,
       ),
     );
@@ -350,7 +355,10 @@ class _SalePageState extends State<SalePage> {
       context: context,
       barrierDismissible: false,
       builder: (context) => _ProductFormDialog(
-        productService: ProductService(widget.database),
+        productService: ProductService(
+          widget.database,
+          licenseService: widget.licenseService,
+        ),
         editingProduct: null,
       ),
     );

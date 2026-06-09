@@ -8,6 +8,7 @@ import 'package:offline_desktop_program/src/database/app_database.dart';
 import 'package:offline_desktop_program/src/services/auth_service.dart';
 import 'package:offline_desktop_program/src/services/contract_print_service.dart';
 import 'package:offline_desktop_program/src/services/customer_service.dart';
+import 'package:offline_desktop_program/src/services/license_service.dart';
 import 'package:offline_desktop_program/src/services/product_service.dart';
 import 'package:offline_desktop_program/src/services/sale_service.dart';
 import 'package:offline_desktop_program/src/services/tracking_service.dart';
@@ -31,6 +32,7 @@ void main() {
         home: HomeShell(
           database: database,
           authService: AuthService(database),
+          licenseService: LicenseService.full(),
           profile: User(
             id: 'user-1',
             fullName: 'Alice Admin',
@@ -104,6 +106,7 @@ void main() {
       OfflineProgramApp(
         database: database,
         databasePath: Future.value('memory://offline_desktop_program.sqlite'),
+        licenseService: LicenseService.full(),
       ),
     );
     await tester.pump();
@@ -670,6 +673,123 @@ void main() {
     await database.close();
   });
 
+  test('demo license blocks expired use and describes the trial window', () {
+    final today = DateTime(2026, 6, 9);
+    final activeDemo = LicenseService.demo(
+      customerName: 'Demo Customer',
+      expiresAt: DateTime(2026, 6, 23),
+      now: () => today,
+    );
+
+    expect(activeDemo.snapshot.isDemo, isTrue);
+    expect(activeDemo.remainingDays, 14);
+    expect(activeDemo.statusLabel, contains('Demo'));
+    activeDemo.assertCanUseApp();
+
+    final expiredDemo = LicenseService.demo(
+      customerName: 'Demo Customer',
+      expiresAt: DateTime(2026, 6, 8),
+      now: () => today,
+    );
+
+    expect(
+      expiredDemo.assertCanUseApp,
+      throwsA(
+        isA<LicenseException>().having(
+          (error) => error.message,
+          'message',
+          contains('หมดอายุ'),
+        ),
+      ),
+    );
+  });
+
+  test('demo license limits customer product and sale creation', () async {
+    final database = createInMemoryDatabaseForTests();
+    final licenseService = LicenseService.demo(
+      customerName: 'Demo Customer',
+      expiresAt: DateTime(2026, 6, 23),
+      maxCustomers: 1,
+      maxProducts: 1,
+      maxSales: 1,
+      now: () => DateTime(2026, 6, 9),
+    );
+    final customerService = CustomerService(
+      database,
+      licenseService: licenseService,
+    );
+    final productService = ProductService(
+      database,
+      licenseService: licenseService,
+    );
+    final saleService = SaleService(database, licenseService: licenseService);
+
+    await customerService.createCustomer(
+      const CustomerPayload(name: 'ลูกค้า Demo'),
+    );
+    await expectLater(
+      customerService.createCustomer(
+        const CustomerPayload(name: 'ลูกค้า Demo เกิน limit'),
+      ),
+      throwsA(
+        isA<CustomerException>().having(
+          (error) => error.message,
+          'message',
+          contains('Demo'),
+        ),
+      ),
+    );
+
+    final product = await productService.createProduct(
+      const ProductPayload(name: 'สินค้า Demo', salePrice: 1000),
+    );
+    await expectLater(
+      productService.createProduct(
+        const ProductPayload(name: 'สินค้า Demo เกิน limit', salePrice: 1000),
+      ),
+      throwsA(
+        isA<ProductException>().having(
+          (error) => error.message,
+          'message',
+          contains('Demo'),
+        ),
+      ),
+    );
+
+    final customer = (await database.watchActiveCustomers().first).single;
+    await saleService.createSale(
+      SalePayload(
+        customer: customer,
+        items: [SaleItemPayload(product: product, quantity: 1)],
+        vatOption: SaleVatOption.none,
+        downPaymentAmount: 0,
+        installmentCount: 1,
+        firstDueDate: _testFirstDueDate,
+      ),
+    );
+    await expectLater(
+      saleService.createSale(
+        SalePayload(
+          customer: customer,
+          items: [SaleItemPayload(product: product, quantity: 1)],
+          vatOption: SaleVatOption.none,
+          downPaymentAmount: 0,
+          installmentCount: 1,
+          firstDueDate: _testFirstDueDate,
+        ),
+      ),
+      throwsA(
+        isA<SaleException>().having(
+          (error) => error.message,
+          'message',
+          contains('Demo'),
+        ),
+      ),
+    );
+
+    await database.close();
+  });
+
   test('sale service calculates VAT and adjustable down payment', () async {
     final database = createInMemoryDatabaseForTests();
     final customerService = CustomerService(database);
@@ -918,9 +1038,16 @@ void main() {
 
       final html = await SaleContractPrintService(
         database,
+        licenseService: LicenseService.demo(
+          customerName: 'Demo Customer',
+          expiresAt: DateTime(2026, 6, 23),
+          now: () => DateTime(2026, 6, 9),
+        ),
       ).buildContractHtml(sale.id);
 
       expect(html, contains('หนังสือสัญญาซื้อขาย'));
+      expect(html, contains('demo-watermark'));
+      expect(html, contains('DEMO - ใช้ทดสอบเท่านั้น'));
       expect(html, contains('contract-print-header'));
       expect(html, contains('display: table-header-group'));
       expect(html, contains('ร้านทดสอบไดนามิก'));
@@ -1249,6 +1376,7 @@ ORDER BY installment_number
         home: Scaffold(
           body: SaleListPage(
             database: database,
+            licenseService: LicenseService.full(),
             saleService: saleService,
             receiverName: 'Alice Admin',
           ),

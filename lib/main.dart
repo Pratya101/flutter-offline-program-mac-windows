@@ -14,6 +14,7 @@ import 'src/services/auth_service.dart';
 import 'src/services/backup_service.dart';
 import 'src/services/contract_print_service.dart';
 import 'src/services/customer_service.dart';
+import 'src/services/license_service.dart';
 import 'src/services/product_service.dart';
 import 'src/services/sale_service.dart';
 import 'src/services/tracking_service.dart';
@@ -40,10 +41,12 @@ class OfflineProgramApp extends StatefulWidget {
     super.key,
     required this.database,
     this.databasePath,
+    this.licenseService,
   });
 
   final AppDatabase database;
   final Future<String>? databasePath;
+  final LicenseService? licenseService;
 
   @override
   State<OfflineProgramApp> createState() => _OfflineProgramAppState();
@@ -51,6 +54,7 @@ class OfflineProgramApp extends StatefulWidget {
 
 class _OfflineProgramAppState extends State<OfflineProgramApp> {
   late final AuthService _authService;
+  late final LicenseService _licenseService;
   User? _profile;
   Shop? _shop;
 
@@ -58,6 +62,7 @@ class _OfflineProgramAppState extends State<OfflineProgramApp> {
   void initState() {
     super.initState();
     _authService = AuthService(widget.database);
+    _licenseService = widget.licenseService ?? LicenseService.fromEnvironment();
   }
 
   @override
@@ -214,6 +219,7 @@ class _OfflineProgramAppState extends State<OfflineProgramApp> {
           : HomeShell(
               database: widget.database,
               authService: _authService,
+              licenseService: _licenseService,
               profile: _profile!,
               shop: _shop!,
               databasePath: widget.databasePath ?? defaultDatabasePath(),

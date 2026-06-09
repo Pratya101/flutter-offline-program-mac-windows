@@ -1,4 +1,5 @@
 import '../database/app_database.dart';
+import 'license_service.dart';
 
 class CustomerException implements Exception {
   const CustomerException(this.message);
@@ -46,12 +47,19 @@ class CustomerPayload {
 }
 
 class CustomerService {
-  const CustomerService(this._database);
+  CustomerService(this._database, {LicenseService? licenseService})
+    : _licenseService = licenseService ?? LicenseService.fromEnvironment();
 
   final AppDatabase _database;
+  final LicenseService _licenseService;
 
   Future<Customer> createCustomer(CustomerPayload payload) async {
     _validate(payload);
+    try {
+      await _licenseService.assertCanCreateCustomer(_database);
+    } on LicenseException catch (error) {
+      throw CustomerException(error.message);
+    }
     return _database.createCustomer(
       name: payload.name,
       nickname: payload.nickname,

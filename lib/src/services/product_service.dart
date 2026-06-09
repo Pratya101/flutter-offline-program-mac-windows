@@ -1,4 +1,5 @@
 import '../database/app_database.dart';
+import 'license_service.dart';
 
 class ProductException implements Exception {
   const ProductException(this.message);
@@ -24,13 +25,20 @@ class ProductPayload {
 }
 
 class ProductService {
-  const ProductService(this._database);
+  ProductService(this._database, {LicenseService? licenseService})
+    : _licenseService = licenseService ?? LicenseService.fromEnvironment();
 
   final AppDatabase _database;
+  final LicenseService _licenseService;
 
   Future<Product> createProduct(ProductPayload payload) async {
     _validate(payload);
     final code = await _resolveCode(payload.code);
+    try {
+      await _licenseService.assertCanCreateProduct(_database);
+    } on LicenseException catch (error) {
+      throw ProductException(error.message);
+    }
     return _database.createProduct(
       code: code,
       name: payload.name,
@@ -81,7 +89,7 @@ class ProductService {
 
     for (var attempt = 0; attempt < 10; attempt += 1) {
       final generated = _generateProductCode(attempt);
-      final existing = await _database.findActiveProductByCode(generated);
+      final existing = await _findActiveProductByCode(generated);
       if (existing == null ||
           (editingProductId != null && existing.id == editingProductId)) {
         return generated;
@@ -95,10 +103,24 @@ class ProductService {
     String code, {
     String? editingProductId,
   }) async {
-    final existing = await _database.findActiveProductByCode(code);
+    final existing = await _findActiveProductByCode(code);
     if (existing != null && existing.id != editingProductId) {
       throw const ProductException('รหัสสินค้านี้ถูกใช้แล้ว');
     }
+  }
+
+  Future<Product?> _findActiveProductByCode(String code) async {
+    final normalized = _normalizeCode(code);
+    if (normalized == null) {
+      return null;
+    }
+    final activeProducts = await _database.getActiveProducts();
+    for (final product in activeProducts) {
+      if (_normalizeCode(product.code) == normalized) {
+        return product;
+      }
+    }
+    return null;
   }
 }
 

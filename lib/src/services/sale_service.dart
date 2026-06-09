@@ -1,4 +1,5 @@
 import '../database/app_database.dart';
+import 'license_service.dart';
 
 class SaleException implements Exception {
   const SaleException(this.message);
@@ -92,11 +93,13 @@ class SalePaymentDetail {
 }
 
 class SaleService {
-  const SaleService(this._database);
+  SaleService(this._database, {LicenseService? licenseService})
+    : _licenseService = licenseService ?? LicenseService.fromEnvironment();
 
   static const vatRate = 0.07;
 
   final AppDatabase _database;
+  final LicenseService _licenseService;
 
   SaleTotals calculateTotals({
     required List<SaleItemPayload> items,
@@ -154,6 +157,11 @@ class SaleService {
     _validateCustomer(payload.customer);
     _validateItems(payload.items);
     _validateInstallmentCount(payload.installmentCount);
+    try {
+      await _licenseService.assertCanCreateSale(_database);
+    } on LicenseException catch (error) {
+      throw SaleException(error.message);
+    }
 
     final totals = calculateTotals(
       items: payload.items,

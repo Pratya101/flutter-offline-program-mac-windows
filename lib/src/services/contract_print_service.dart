@@ -4,13 +4,23 @@ import 'package:path/path.dart' as p;
 
 import '../database/app_database.dart';
 import '../database/database_connection.dart';
+import 'license_service.dart';
 
 class SaleContractPrintService {
-  const SaleContractPrintService(this._database);
+  SaleContractPrintService(
+    this._database, {
+    LicenseService? licenseService,
+  }) : _licenseService = licenseService ?? LicenseService.fromEnvironment();
 
   final AppDatabase _database;
+  final LicenseService _licenseService;
 
   Future<String> buildContractHtml(String saleId) async {
+    try {
+      _licenseService.assertCanUseApp();
+    } on LicenseException catch (error) {
+      throw SaleContractPrintException(error.message);
+    }
     final sale = await _database.findActiveSaleById(saleId);
     if (sale == null) {
       throw const SaleContractPrintException('ไม่พบรายการขาย');
@@ -31,6 +41,9 @@ class SaleContractPrintService {
     final contractTerms = _contractTermsHtml(
       sale: sale,
       installments: installments,
+    );
+    final demoWatermark = _demoWatermarkHtml(
+      _licenseService.documentWatermarkText,
     );
 
     return '''
@@ -181,6 +194,30 @@ class SaleContractPrintService {
       border-bottom: 2px solid #475569;
     }
     .muted { color: #64748b; }
+    .demo-watermark {
+      position: fixed;
+      inset: 0;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      color: rgba(220, 38, 38, 0.14);
+      font-size: 54px;
+      font-weight: 900;
+      letter-spacing: 0;
+      text-align: center;
+      transform: rotate(-24deg);
+    }
+    .demo-print-notice {
+      margin: 0 0 8px;
+      border: 1px solid #dc2626;
+      color: #991b1b;
+      background: #fef2f2;
+      padding: 6px 8px;
+      text-align: center;
+      font-weight: 900;
+    }
     @media print {
       .no-print { display: none; }
       .document { border-color: #334155; }
@@ -188,10 +225,12 @@ class SaleContractPrintService {
   </style>
 </head>
 <body>
+  $demoWatermark
   <table class="document">
     <thead class="contract-print-header">
       <tr>
         <td class="contract-print-header-cell">
+          ${_demoNoticeHtml(_licenseService.documentWatermarkText)}
           <section class="store-box">
             <h1 class="title">หนังสือสัญญาซื้อขาย</h1>
             <p class="store-name">${_escapeHtml(shop.name)}</p>
@@ -397,6 +436,20 @@ class _ContractPaymentRow {
   final String installmentLabel;
   final double? amount;
   final String receiverName;
+}
+
+String _demoWatermarkHtml(String? text) {
+  if (text == null || text.trim().isEmpty) {
+    return '';
+  }
+  return '<div class="demo-watermark">${_escapeHtml(text)}</div>';
+}
+
+String _demoNoticeHtml(String? text) {
+  if (text == null || text.trim().isEmpty) {
+    return '';
+  }
+  return '<div class="demo-print-notice">${_escapeHtml(text)}</div>';
 }
 
 String _itemRowHtml(SaleItem item) {
